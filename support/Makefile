@@ -3,8 +3,8 @@ TARGET_VERSION ?= 0.1.0
 
 INSTALLDIR = ../lib
 
-LDFLAGS =
-CPPFLAGS = -fPIC
+LDFLAGS = -shared -no-pie
+CPPFLAGS = -fPIC -fno-PIE
 
 CC_VERSION = $(shell $(CC) --version)
 
