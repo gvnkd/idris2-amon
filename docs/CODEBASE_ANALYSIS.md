@@ -1,5 +1,9 @@
 # Codebase Analysis Report: amon
 
+> **Note:** This report was written against an earlier version of the codebase.
+> Some files referenced below (`PipeLeak.idr`, `Main.idr`, `Worker.idr`) have been
+> removed in subsequent cleanup. The analysis of remaining modules is still valid.
+
 ## Overview
 
 This report analyzes the Idris 2 codebase of the `amon` project against the style
@@ -12,12 +16,11 @@ attention to Idris 2 idioms.
 
 ### 1. Massive Code Duplication: Process Spawning
 
-**Files:** `Monitor/Process.idr`, `Monitor/ProcessStream.idr`, `PipeLeak.idr`
+**Files:** `Monitor/Process.idr`, `Monitor/ProcessStream.idr`
 
-The same low-level POSIX process spawning logic is copy-pasted across three files:
+The same low-level POSIX process spawning logic is duplicated across two files:
 - `Monitor/Process.spawnCmd`
 - `Monitor/ProcessStream.spawnProcessSetup`
-- `PipeLeak.spawn`
 
 Each performs: `malloc` pipe array, `pipe`/`pipe2`, `newBuffer 8`, `getBits32`,
 `fork`, child `dup2` dance, parent `fcntl` for `O_NONBLOCK`, `execvp "/bin/sh"`.
@@ -25,17 +28,11 @@ Each performs: `malloc` pipe array, `pipe`/`pipe2`, `newBuffer 8`, `getBits32`,
 **Advice:** Extract a single `spawnProcess` function in `Monitor.Process` that
 returns `IO (Maybe (Int, Int, Maybe Int))` --- (readFd, pid, logFd).
 `ProcessStream` already imports `Monitor.Process`. The differences (`pipe` vs
-`pipe2`, `closeFdsFrom 3`, env prefix) should be parameters or variants of this
-single function. `PipeLeak.idr` should reuse it too.
+`pipe2`, env prefix) should be parameters or variants of this single function.
 
 ### 2. Duplicated `loadTasks`
 
-**Files:** `Main.idr` (lines 17-29), `Monitor/Provider.idr` (lines 10-22)
-
-Identical implementation. `Main.idr` already imports `Monitor.Provider`, so this
-is pure duplication.
-
-**Fix:** Delete `Main.loadTasks` and use `Monitor.Provider.loadTasks`.
+**Status:** RESOLVED. `Main.idr` has been removed; `Monitor.Provider.loadTasks` is the single implementation.
 
 ### 3. Duplicated Output Splitting
 
@@ -113,8 +110,6 @@ interpolation (`\{x}`) in some places and `++` in others, inconsistently.
   `"timeout \{show task.timeout}s \{task.path} \{unwords task.args}"`
 
 - `Monitor/ProcessStream.idr` lines 96-99: same pattern
-
-- `Worker.idr` line 42: same pattern
 
 ---
 
@@ -275,7 +270,6 @@ approach is unmaintainable and system-dependent.
 
 - `Monitor/Process.idr` line 242-244: `stripAnsi` is defined but never called
   (only `truncateAnsi` is used in `View.idr`).
-- `PipeLeak.idr` lines 136-140: `showChildren` is defined but never called.
 
 ---
 
@@ -288,11 +282,8 @@ approach is unmaintainable and system-dependent.
 
 ## Minor: Non-English Comments
 
-**Files:** `Worker.idr`, `Main.idr`
-
-Comments like `-- \u0412\u0441\u043F\u043E\u043C\u043E\u0433\u0430\u0442\u0435\u043B\u044C\u043D\u0430\u044F \u0444\u0443\u043D\u043A\u0446\u0438\u044F \u0437\u0430\u043F\u0438\u0441\u0438 \u043B\u043E\u0433\u0430`,
-`-- \u0420\u0435\u043A\u0443\u0440\u0441\u0438\u0432\u043D\u043E\u0435 \u0447\u0442\u0435\u043D\u0438\u0435 \u0432\u0441\u0435\u0445 \u0441\u0442\u0440\u043E\u043A` are in Russian. The rest of the
-codebase and all identifiers are English. Inconsistent.
+**Status:** RESOLVED. Russian comments in `Worker.idr` and `Main.idr` were removed
+when those legacy files were deleted.
 
 ---
 
@@ -300,16 +291,16 @@ codebase and all identifiers are English. Inconsistent.
 
 | Issue | Severity | Files |
 |-------|----------|-------|
-| Process spawn duplication | Critical | Process.idr, ProcessStream.idr, PipeLeak.idr |
-| `loadTasks` duplication | Critical | Main.idr, Provider.idr |
+| Process spawn duplication | Critical | Process.idr, ProcessStream.idr |
+| `loadTasks` duplication | Resolved | Provider.idr |
 | Magic numbers | High | Process.idr, ProcessStream.idr |
 | Missing documentation | High | All |
 | `mutual` blocks | Medium | Process.idr |
-| String `++` instead of interpolation | Medium | Process.idr, ProcessStream.idr, Worker.idr |
+| String `++` instead of interpolation | Medium | Process.idr, ProcessStream.idr |
 | Manual `Maybe` unwrapping | Medium | Types.idr |
 | `primIO`/`ignore` misuse | Medium | Process.idr |
 | `concat $ map` anti-pattern | Low | ProcessStream.idr |
-| Dead code | Low | Process.idr, PipeLeak.idr |
+| Dead code | Low | Process.idr |
 | Naming inconsistency | Low | Protocol.idr |
 
 ---

@@ -7,6 +7,6 @@ ui {
 
 layout {
     pane name="amon" size=48 {
-        cwd "/srv/ai-slop-idris2"
+        cwd "/srv/idris2-amon"
     }
 }

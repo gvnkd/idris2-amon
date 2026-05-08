@@ -5,13 +5,8 @@ version    = 0.1.0
 readme     = "README.md"
 license    = "MIT"
 
--- Главный модуль приложения
 main       = Monitor.Main
-
--- Имя исполняемого файла
 executable = amon
-
--- Папка с исходным кодом
 sourcedir  = "src"
 
 depends    = base >= 0.5.1
@@ -27,7 +22,6 @@ depends    = base >= 0.5.1
            , streams-posix
 
 modules    = Protocol
-           , Worker
            , Monitor.Types
            , Monitor.Mock
            , Monitor.Provider
@@ -37,11 +31,9 @@ modules    = Protocol
            , Monitor.View
            , Monitor.Handler
            , Monitor.Main
-           , Main
 
 prebuild = "make -C support"
 
 postbuild = "cp support/amon-idris build/exec/amon_app/amon-idris.so || true"
 
--- Опции компилятора (например, для проверки тотальности по умолчанию)
 -- opts       = "--total"

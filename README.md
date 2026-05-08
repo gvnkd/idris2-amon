@@ -26,36 +26,36 @@ idris2 --build amon.ipkg
 
 ## Task Configuration
 
-Tasks are defined in `tasks.json`:
+Tasks are defined in `tasks.json` using a nested batch structure:
 
 ```json
-[
-  {
-    "name": "Ansible",
-    "path": "ansible-playbook",
-    "args": ["playbook.yml"],
-    "timeout": 20,
-    "logFile": "logs/ansible.log",
-    "blockingIO": true,
-    "envVars": {"ANSIBLE_FORCE_COLOR": "True"}
+{
+  "config": {
+    "batchName": "Test Suite",
+    "maxWorkers": 3
   },
-  {
-    "name": "Quick Task",
-    "path": "ls",
-    "args": ["--color=always", "-la"],
-    "timeout": 5
+  "Test Suite": {
+    "Quick Task": {
+      "path": "ls",
+      "args": ["--color=always", "-la"],
+      "timeout": 5,
+      "logFile": "logs/quick.log",
+      "blockingIO": false
+    }
   }
-]
+}
 ```
 
 Fields:
-- `name` — display label in the TUI
-- `path` — command to execute
-- `args` — arguments passed to the command
-- `timeout` — max seconds before kill (0 = no timeout)
-- `logFile` — optional path to write full output log
-- `blockingIO` — use blocking I/O mode (for tasks that buffer stdout)
-- `envVars` — optional object of environment variables to set for this task
+- `config.batchName` — display label in the TUI title bar
+- `config.maxWorkers` — number of parallel workers (default: 2)
+- `config.leftWidth` — optional left column width override
+- `<batch>.<task>.path` — command to execute
+- `<batch>.<task>.args` — arguments passed to the command
+- `<batch>.<task>.timeout` — max seconds before kill (0 = no timeout)
+- `<batch>.<task>.logFile` — optional path to write full output log
+- `<batch>.<task>.blockingIO` — use blocking I/O mode (for tasks that buffer stdout)
+- `<batch>.<task>.envVars` — optional object of environment variables to set for this task
 
 ## Task Logging
 
@@ -85,25 +85,33 @@ src/Monitor/
   Types.idr           # JobDisplayStatus, JobUpdate, JobMonitorState
   View.idr            # TUI rendering, emoji badges, colorized output
   Handler.idr         # Key handling (x = cancel), job state updates
-  Process.idr         # Process spawning helpers, ANSI utilities
+  Process.idr         # ANSI stripping and truncation utilities
   ProcessStream.idr   # Async process I/O with pipe2(O_CLOEXEC)
   Source.idr          # Event source (JobStarted, JobFinished, etc.)
+  Provider.idr        # tasks.json parsing and job entry creation
   Mock.idr            # Mock data for testing
 src/Protocol.idr      # Shared types: ProcessTask, TaskState, Ticket
-src/Worker.idr        # Worker pool for legacy CLI mode
-src/cstr_write.c      # C FFI: cstr_write(), cstr_timestamp()
+support/
+  amon-idris.c        # C FFI: spawn_child, cstr_write, cstr_timestamp
+  Makefile            # Builds support/amon-idris.so
 ```
 
 ## C FFI Helpers
 
-```sh
-gcc -shared -fPIC -o cstr_write.so src/cstr_write.c
-cp cstr_write.so build/exec/amon_app/
-```
-
-## Playground Examples
+The C support library is built automatically via `amon.ipkg`'s `prebuild` hook:
 
 ```sh
-idris2 pg/Main.idr -o pg
-./build/exec/pg
+make -C support
 ```
+
+This produces `support/amon-idris`, which is copied to `build/exec/amon_app/amon-idris.so` during the `postbuild` phase.
+
+## Keyboard Controls
+
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` | Navigate job list |
+| `j` / `k` | Scroll log viewer down / up |
+| `h` / `l` | Scroll log viewer horizontally |
+| `x` | Cancel selected running job |
+| `q` / `Esc` | Quit |
