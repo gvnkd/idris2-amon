@@ -35,31 +35,8 @@ set -euo pipefail
 SESSION="amon-tui"
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_BIN="${APP_DIR}/build/exec/amon"
-LAYOUT_FILE=$(mktemp --suffix=.kdl)
 BUILD_CMD="idris2 --build amon.ipkg 2>&1 && echo SUCCESS || echo FAILED"
 NO_DETAIL=false
-
-# Clean up temp layout on exit
-cleanup() {
-  rm -f "$LAYOUT_FILE"
-}
-trap cleanup EXIT
-
-# Generate layout with correct cwd
-cat > "$LAYOUT_FILE" <<KDL
-ui {
-  session_serialization false
-  show_startup_tips false
-  pane_frames false
-  simplified_ui true
-}
-
-layout {
-    pane name="amon" size=24 {
-        cwd "${APP_DIR}"
-    }
-}
-KDL
 
 # --- helpers ---
 
@@ -81,6 +58,12 @@ zj() {
 # Only match active sessions (not EXITED ones)
 session_exists() {
   zellij list-sessions --no-formatting 2>/dev/null | grep "^${SESSION} " | grep -qv "EXITED"
+}
+
+require_session() {
+  if ! session_exists; then
+    die "Session '$SESSION' not found. Start it with: $0"
+  fi
 }
 
 # Find the pane running amon, or return the first terminal pane
@@ -210,7 +193,7 @@ cmd_start() {
 
   # Create headless session with fixed layout (starts shell in project dir)
   info "Starting headless session '$SESSION'..."
-  zellij --session "$SESSION" attach --create-background "$SESSION" options --default-layout "$LAYOUT_FILE"
+  zellij --session "$SESSION" attach --create-background "$SESSION" options --default-layout "${APP_DIR}/amon.layout.kdl"
 
   # Wait for shell to be ready
   sleep 2
@@ -239,9 +222,9 @@ cmd_rebuild() {
 
   build_app
 
-  # Create headless session with generated layout (starts shell in project dir)
+  # Create headless session with fixed layout (starts shell in project dir)
   info "Starting headless session '$SESSION'..."
-  zellij --session "$SESSION" attach --create-background "$SESSION" options --default-layout "$LAYOUT_FILE"
+  zellij --session "$SESSION" attach --create-background "$SESSION" options --default-layout "${APP_DIR}/amon.layout.kdl"
 
   # Wait for shell to be ready
   sleep 2
@@ -258,13 +241,12 @@ cmd_rebuild() {
 }
 
 cmd_attach() {
-  if ! session_exists; then
-    die "Session '$SESSION' not found. Start it with: $0"
-  fi
+  require_session
   zj attach "$SESSION"
 }
 
 cmd_screen() {
+  require_session
   local pane_id="${1:-}"
   if [[ -z "$pane_id" ]]; then
     pane_id=$(wait_for_pane 20)
@@ -273,6 +255,7 @@ cmd_screen() {
 }
 
 cmd_screen_file() {
+  require_session
   local pane_id="${1:-}"
   local path="${2:-/dev/stdout}"
   if [[ -z "$pane_id" ]]; then
@@ -282,6 +265,7 @@ cmd_screen_file() {
 }
 
 cmd_send_keys() {
+  require_session
   if [[ $# -lt 1 ]]; then
     die "Usage: $0 --send-keys KEY [KEY...]"
   fi
@@ -299,6 +283,7 @@ cmd_send_keys() {
 }
 
 cmd_write_chars() {
+  require_session
   if [[ $# -lt 1 ]]; then
     die "Usage: $0 --write-chars TEXT"
   fi
@@ -311,6 +296,7 @@ cmd_write_chars() {
 }
 
 cmd_subscribe() {
+  require_session
   local pane_id
   pane_id=$(wait_for_pane 20)
   info "Streaming viewport of pane $pane_id (Ctrl-C to stop)..."
@@ -404,31 +390,64 @@ EOF
 # --- main ---
 
 # Parse flags that affect launch behavior
-# Strip leading --no-detail flags, then take the rest as the command + args
+LAUNCH_ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-detail)
       NO_DETAIL=true
       shift
       ;;
-    *)
+    --rebuild|--attach|--screen|--screen-file|--send-keys|--write-chars|--subscribe|--status|--stop|--help|-h)
       break
+      ;;
+    *)
+      LAUNCH_ARGS+=("$1")
+      shift
       ;;
   esac
 done
 
-[[ $# -eq 0 ]] && { cmd_start; exit 0; }
-
-case "$1" in
-  --rebuild)     shift; cmd_rebuild "$@" ;;
-  --attach)      shift; cmd_attach "$@" ;;
-  --screen)      shift; cmd_screen "$@" ;;
-  --screen-file) shift; cmd_screen_file "$@" ;;
-  --send-keys)   shift; cmd_send_keys "$@" ;;
-  --write-chars) shift; cmd_write_chars "$@" ;;
-  --subscribe)   shift; cmd_subscribe "$@" ;;
-  --status)      shift; cmd_status "$@" ;;
-  --stop)        shift; cmd_stop "$@" ;;
-  --help|-h)     usage ;;
-  *)             die "Unknown option: $1" ;;
+case "${1:-}" in
+  --rebuild)
+    shift
+    cmd_rebuild "$@"
+    ;;
+  --attach)
+    shift
+    cmd_attach "$@"
+    ;;
+  --screen)
+    shift
+    cmd_screen "$@"
+    ;;
+  --screen-file)
+    shift
+    cmd_screen_file "$@"
+    ;;
+  --send-keys)
+    shift
+    cmd_send_keys "$@"
+    ;;
+  --write-chars)
+    shift
+    cmd_write_chars "$@"
+    ;;
+  --subscribe)
+    shift
+    cmd_subscribe "$@"
+    ;;
+  --status)
+    shift
+    cmd_status "$@"
+    ;;
+  --stop)
+    shift
+    cmd_stop "$@"
+    ;;
+  --help|-h)
+    usage
+    ;;
+  *)
+    cmd_start
+    ;;
 esac
