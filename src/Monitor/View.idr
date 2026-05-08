@@ -5,31 +5,49 @@ import TUI.Painting
 import TUI.Geometry
 import TUI.Layout
 import Monitor.Types
+import Monitor.Process
 import Protocol
 import Data.List
 
 View JobDisplayStatus where
-  size _ = MkArea 3 1
+  size _ = MkArea 2 1
   paint _ window QUEUED = do
-    showTextAt window.nw "[Q]"
+    sgr [SetForeground Yellow]
+    showTextAt window.nw "⏳"
+    sgr [Reset]
   paint _ window RUNNING = do
-    showTextAt window.nw "[R]"
+    sgr [SetForeground Cyan]
+    showTextAt window.nw "⏵"
+    sgr [Reset]
   paint _ window SUCCESS = do
-    showTextAt window.nw "[+]"
+    sgr [SetForeground Green]
+    showTextAt window.nw "✔"
+    sgr [Reset]
   paint _ window FAILED = do
-    showTextAt window.nw "[x]"
+    sgr [SetForeground Red]
+    showTextAt window.nw "✘"
+    sgr [Reset]
+  paint _ window TIMEDOUT = do
+    sgr [SetForeground Yellow]
+    showTextAt window.nw "⏱"
+    sgr [Reset]
   paint _ window CANCELLED = do
-    showTextAt window.nw "[X]"
+    sgr [SetForeground BrightRed]
+    showTextAt window.nw "⛔"
+    sgr [Reset]
 
 View JobEntry where
   size entry = MkArea (4 + length entry.task.name) 1
   paint state window entry = do
-    let (badgeRect, rest) = window.splitLeft 3
+    let (badgeRect, rest) = window.splitLeft 2
     paint Normal badgeRect entry.status
+    let sel = case state of
+               Focused => " > "
+               _       => " "
     case state of
       Focused => sgr [SetReversed True]
       _       => sgr []
-    showTextAt rest.nw $ " " ++ entry.task.name
+    showTextAt rest.nw $ sel ++ entry.task.name
     sgr [Reset]
 
 View LogLine where
@@ -56,12 +74,9 @@ paintLogLines window colOffset (line :: rest) =
   if window.height == 0
     then pure ()
     else do
-      let prefW = length line.stream + 1
-      let maxW = minus window.width prefW
-      let chars = drop colOffset (unpack line.text)
-      let trimmed = MkLogLine line.stream (pack (take maxW chars))
-      remaining <- packTop Normal window trimmed
-      paintLogLines remaining colOffset rest
+      let (top, bottom) = window.splitTop 1
+      showTextAt top.nw $ truncateAnsi window.width line.text
+      paintLogLines bottom colOffset rest
 
 autoScrollOffset : Nat -> Nat -> List LogLine -> Nat
 autoScrollOffset viewH scrollUp logs = minus (length logs) viewH `minus` scrollUp

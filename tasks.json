@@ -5,7 +5,8 @@
     "args": ["test/playbook.yml"],
     "timeout": 20,
     "logFile": "logs/ansible.log",
-    "blockingIO": true
+    "blockingIO": true,
+    "envVars": {"ANSIBLE_FORCE_COLOR": "True"}
   },
   {
     "name": "Quick Sleep",
@@ -28,7 +29,7 @@
     "path": "./watch.sh",
     "args": [ ],
     "timeout": 30,
-    "logFile": null,
+    "logFile": "logs/watch.log",
     "blockingIO": false
   },
   {
