@@ -34,13 +34,39 @@
           p.streams-posix
         ]);
 
-        amonPkg = pkgs.idris2Packages.buildIdris {
+        pkg = pkgs.idris2Packages.buildIdris {
           src = ./.;
           ipkgName = "amon";
           version = "0.1.0";
           inherit idrisLibraries;
           nativeBuildInputs = [ pkgs.gcc ];
         };
+
+        # Wrap executable with LD_LIBRARY_PATH pointing to lib dir
+        # and create .so symlinks so Chez dlopen can find FFI libs
+        executable = pkg.executable.overrideAttrs (old: {
+          postFixup = ''
+            ${old.postFixup or ""}
+            # Create .so symlinks in $out/lib for Chez FFI loader
+            mkdir -p $out/lib
+            for f in $out/bin/*; do
+              if [ -f "$f" ] && [ ! -L "$f" ] && [ -x "$f" ]; then
+                base=$(basename "$f")
+                # Check if there's a corresponding .so source
+                if [ -f "${./.}/support/$base" ] || [ -f "${./.}/support/$base.c" ]; then
+                  ln -s "$f" "$out/lib/$base.so"
+                fi
+              fi
+            done
+            # Add $out/lib to LD_LIBRARY_PATH in all wrappers
+            for prog in $out/bin/*; do
+              if [ -f "$prog" ] && [ -x "$prog" ] && [ ! -L "$prog" ]; then
+                wrapProgram "$prog" \
+                  --prefix LD_LIBRARY_PATH ':' "$out/lib"
+              fi
+            done
+          '';
+        });
 
         buildScript = pkgs.writeShellScriptBin "build" ''
           set -e
@@ -49,7 +75,10 @@
         '';
       in
       {
-        packages.default = amonPkg.executable;
+        packages = {
+          default = executable;
+          lib = pkg.library';
+        };
 
         devShells.default = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
