@@ -111,24 +111,37 @@ dirExists path = do
     Right d => do closeDir d; pure True
     Left _  => pure False
 
-validateLogDirs : List ProcessTask -> IO (Maybe String)
-validateLogDirs tasks = do
-  errs <- checkAll tasks []
+resolvePath : String -> String -> String
+resolvePath baseDir path =
+  case unpack path of
+    '/' :: _ => path
+    _        => baseDir ++ "/" ++ path
+
+validateLogDirs : String -> List ProcessTask -> IO (Maybe String, List ProcessTask)
+validateLogDirs baseDir tasks = do
+  (errs, resolved) <- checkAll tasks [] []
   case errs of
-    [] => pure Nothing
-    _  => pure (Just (unlines (nub errs)))
+    [] => pure (Nothing, resolved)
+    _  => pure (Just (unlines (nub errs)), [])
   where
-    checkAll : List ProcessTask -> List String -> IO (List String)
-    checkAll [] acc = pure acc
-    checkAll (t :: ts) acc =
+    resolveLogFile : ProcessTask -> ProcessTask
+    resolveLogFile t =
       case t.logFile of
-        Nothing => checkAll ts acc
+        Nothing => t
+        Just path => { logFile := Just (resolvePath baseDir path) } t
+
+    checkAll : List ProcessTask -> List String -> List ProcessTask -> IO (List String, List ProcessTask)
+    checkAll [] acc errs = pure (acc, errs)
+    checkAll (t :: ts) acc resolved =
+      let t' = resolveLogFile t
+      in case t'.logFile of
+        Nothing => checkAll ts acc (t' :: resolved)
         Just path => do
           let dir = parentDir path
           ok <- dirExists dir
           if ok
-            then checkAll ts acc
-            else checkAll ts ("Log directory does not exist: \{dir} (for task '\{t.name}', logFile: \{path})" :: acc)
+            then checkAll ts acc (t' :: resolved)
+            else checkAll ts ("Log directory does not exist: \{dir} (for task '\{t'.name}', logFile: \{path})" :: acc) resolved
 
 public export
 covering
@@ -150,12 +163,13 @@ loadTasks filename = do
               putStrLn "Error: Failed to parse '\{filename}': \{err}"
               pure Nothing
             Right (config, tasks) => do
-              mErr <- validateLogDirs tasks
+              let baseDir = parentDir filename
+              (mErr, resolvedTasks) <- validateLogDirs baseDir tasks
               case mErr of
                 Just err => do
                   putStrLn "Error: \{err}"
                   pure Nothing
-                Nothing => pure (Just (config, tasks))
+                Nothing => pure (Just (config, resolvedTasks))
 
 public export
 toJobEntries : List ProcessTask -> List JobEntry
