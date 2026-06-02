@@ -42,6 +42,10 @@
           nativeBuildInputs = [ pkgs.gcc ];
         };
 
+        # Include transitive dependency lib dirs so Chez dlopen can find
+        # support libraries like cptr-idris.so, elin-idris.so, etc.
+        depLibPath = pkgs.lib.makeSearchPath "lib" pkg.executable.propagatedIdrisLibraries;
+
         # Wrap executable with LD_LIBRARY_PATH pointing to lib dir
         # and create .so symlinks so Chez dlopen can find FFI libs
         executable = pkg.executable.overrideAttrs (old: {
@@ -52,17 +56,28 @@
             for f in $out/bin/*; do
               if [ -f "$f" ] && [ ! -L "$f" ] && [ -x "$f" ]; then
                 base=$(basename "$f")
-                # Check if there's a corresponding .so source
                 if [ -f "${./.}/support/$base" ] || [ -f "${./.}/support/$base.c" ]; then
-                  ln -s "$f" "$out/lib/$base.so"
+                  # buildIdris wraps all .so files with makeBinaryWrapper;
+                  # point the symlink at the unwrapped ELF shared object so
+                  # Chez Scheme's dlopen can load it.
+                  if [ -f "$out/bin/.$base-wrapped" ]; then
+                    ln -s "../bin/.$base-wrapped" "$out/lib/$base.so"
+                  else
+                    ln -s "$f" "$out/lib/$base.so"
+                  fi
                 fi
               fi
             done
-            # Add $out/lib to LD_LIBRARY_PATH in all wrappers
+            # Add dependency and local lib dirs to LD_LIBRARY_PATH in wrappers
             for prog in $out/bin/*; do
               if [ -f "$prog" ] && [ -x "$prog" ] && [ ! -L "$prog" ]; then
-                wrapProgram "$prog" \
-                  --prefix LD_LIBRARY_PATH ':' "$out/lib"
+                base=$(basename "$prog")
+                # Don't wrap support libraries — they must remain valid ELF shared
+                # objects so Chez Scheme's dlopen can load them.
+                if [ ! -f "${./.}/support/$base" ] && [ ! -f "${./.}/support/$base.c" ]; then
+                  wrapProgram "$prog" \
+                    --prefix LD_LIBRARY_PATH ':' "$out/lib:${depLibPath}"
+                fi
               fi
             done
           '';
