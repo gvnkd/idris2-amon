@@ -3,8 +3,10 @@ module Monitor.Provider
 import Protocol
 import Monitor.Types
 import System.File
+import System.Directory
 import Language.JSON
 import Data.List
+import Data.String
 
 getString : List (String, JSON) -> String -> Either String String
 getString pairs key =
@@ -95,6 +97,39 @@ parseTaskFile (JObject topPairs) =
 parseTaskFile _ =
   Left "Root must be a JSON object"
 
+parentDir : String -> String
+parentDir path =
+  case break (== '/') (reverse (unpack path)) of
+    (_, [])       => "."
+    (_, ['/'])    => "/"
+    (_, slashAndAfter) => pack (reverse (drop 1 slashAndAfter))
+
+dirExists : String -> IO Bool
+dirExists path = do
+  res <- openDir path
+  case res of
+    Right d => do closeDir d; pure True
+    Left _  => pure False
+
+validateLogDirs : List ProcessTask -> IO (Maybe String)
+validateLogDirs tasks = do
+  errs <- checkAll tasks []
+  case errs of
+    [] => pure Nothing
+    _  => pure (Just (unlines (nub errs)))
+  where
+    checkAll : List ProcessTask -> List String -> IO (List String)
+    checkAll [] acc = pure acc
+    checkAll (t :: ts) acc =
+      case t.logFile of
+        Nothing => checkAll ts acc
+        Just path => do
+          let dir = parentDir path
+          ok <- dirExists dir
+          if ok
+            then checkAll ts acc
+            else checkAll ts ("Log directory does not exist: \{dir} (for task '\{t.name}', logFile: \{path})" :: acc)
+
 public export
 covering
 loadTasks : String -> IO (Maybe (TaskConfig, List ProcessTask))
@@ -114,7 +149,13 @@ loadTasks filename = do
             Left err => do
               putStrLn "Error: Failed to parse '\{filename}': \{err}"
               pure Nothing
-            Right result => pure (Just result)
+            Right (config, tasks) => do
+              mErr <- validateLogDirs tasks
+              case mErr of
+                Just err => do
+                  putStrLn "Error: \{err}"
+                  pure Nothing
+                Nothing => pure (Just (config, tasks))
 
 public export
 toJobEntries : List ProcessTask -> List JobEntry
