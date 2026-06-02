@@ -20,9 +20,45 @@ Requires [nix](https://nixos.org/) with flakes enabled:
 ```sh
 direnv allow
 idris2 --build amon.ipkg
-./build/exec/amon          # default 2 workers
-./build/exec/amon 4        # 4 parallel workers
+./build/exec/amon                    # default: loads tasks.json
+./build/exec/amon custom.json        # load custom task definition
+./build/exec/amon --help             # show usage
 ```
+
+## CLI Options
+
+The app uses `optparse-applicative` for argument parsing:
+
+```
+amon: Ansible Monitor TUI
+Usage: amon [[TASKS_JSON]]
+
+Options:
+
+<pos> <TASKS_JSON>    Path to tasks.json definition
+```
+
+- `TASKS_JSON` — optional path to the task definition file (default: `tasks.json`)
+- `--help` / `-h` — print usage help and exit
+
+## Flake Outputs
+
+### Bundle (self-contained executable)
+
+```sh
+nix bundle .#default --bundler .
+```
+
+Produces a portable bundled executable (`amon-arx`).
+
+### OCI Container
+
+```sh
+nix build .#container
+docker load < result
+```
+
+Produces a layered OCI image (`amon.tar.gz`) with the executable as entrypoint.
 
 ## Task Configuration
 
