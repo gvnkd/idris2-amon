@@ -51,7 +51,7 @@ nix bundle .#default --bundler .
 
 Produces a portable bundled executable (`amon-arx`).
 
-> ⚠️ **TUI mode is incompatible with `nix bundle`.** The `nix-user-chroot` wrapper causes `EINTR` crashes in the TUI event loop (see [Known Limitations](#known-limitations)). Use `./build/exec/amon` for local TUI execution, or the OCI container for deployment.
+> ⚠️ **TUI mode is fragile.** The app crashes on `EINTR` due to an upstream `async-epoll` bug (see [Known Limitations](#known-limitations)). This affects `nix bundle`, Docker, and local builds when signals are delivered during `epoll_wait`. Use `./build/exec/amon` in a stable terminal for the best local experience.
 
 ### OCI Container
 
@@ -60,7 +60,9 @@ nix build .#container
 docker load < result
 ```
 
-Produces a layered OCI image (`amon.tar.gz`) with the executable as entrypoint. The container uses [`tini`](https://github.com/krallin/tini) as init to avoid PID 1 signal-handling issues (which cause `EINTR` errors in TUI apps).
+Produces a layered OCI image (`amon.tar.gz`) with the executable as entrypoint.
+
+> ⚠️ **Docker also crashes with `EINTR`.** The container entrypoint (`tini`) was added to fix PID 1 signal-handling issues, but the root cause is the same upstream `async-epoll` bug (see [Known Limitations](#known-limitations)). The containerized app still crashes when `epoll_pwait2` is interrupted by signals.
 
 ```sh
 # Run with a TTY (required for TUI)
@@ -161,11 +163,11 @@ This produces `support/amon-idris`, which is copied to `build/exec/amon_app/amon
 
 ## Known Limitations
 
-### `nix bundle` and TUI apps are incompatible
+### Upstream `async-epoll` crashes on `EINTR`
 
-The `nix bundle` output produces a self-contained executable (via `nix-user-chroot`), but **it will crash TUI apps** with `Error: Interrupted system call (EINTR)`.
+The app will crash with `Error: Interrupted system call (EINTR)` whenever a signal is delivered during the async event loop's `epoll_wait`/`epoll_pwait2` call. This affects **all execution modes** — local build, `nix bundle`, and Docker — when signals such as `SIGWINCH` (terminal resize), `SIGCHLD` (child process exit), or `SIGALRM` are delivered.
 
-**Why:** `nix-user-chroot` creates a Linux user namespace to provide the Nix store. Inside this namespace, signals like `SIGWINCH` (window resize) and `SIGCHLD` (child process exit) are delivered differently. The Idris2 `async-epoll` library's event loop (`IO.Async.Loop.Epoll`) calls `epollPwait2` via `dieOnErr`, which **does not retry on `EINTR`**:
+**Why:** The Idris2 `async-epoll` library's event loop (`IO.Async.Loop.Epoll`) calls `epollPwait2` via `dieOnErr`, which **does not retry on `EINTR`**:
 
 ```idris
 -- IO.Async.Loop.Poller:28-32
@@ -178,9 +180,9 @@ dieOnErr act t =
 When `epoll_pwait2` returns `-EINTR`, the app dies immediately instead of retrying the syscall. This is a **bug in the upstream `linux` and `async-epoll` libraries**.
 
 **Workarounds:**
-- **Do not use `nix bundle` for TUI mode.** Build and run normally: `./build/exec/amon`
-- For deployment, use the **OCI container** output instead (see above).
-- For non-TUI headless operation, the bundle would work if amon supported a `--batch` flag.
+- Run locally in a terminal that does not frequently resize or deliver signals.
+- Avoid `nix bundle` and Docker for interactive TUI use until the upstream bug is fixed.
+- For non-TUI headless operation, the bundle/container would work if amon supported a `--batch` flag.
 
 **Proper fix:**
 Patch the upstream `linux` C support library (`linux/linux/support/linux.c`) and/or the Idris2 `async-epoll` bindings to retry `epoll_wait`/`epoll_pwait2` on `EINTR`:
