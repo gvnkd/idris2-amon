@@ -44,6 +44,7 @@
           version = "0.1.0";
           inherit idrisLibraries;
           nativeBuildInputs = [ pkgs.gcc ];
+          meta.mainProgram = "amon";
         };
 
         # Include transitive dependency lib dirs so Chez dlopen can find
