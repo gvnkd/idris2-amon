@@ -58,7 +58,12 @@ nix build .#container
 docker load < result
 ```
 
-Produces a layered OCI image (`amon.tar.gz`) with the executable as entrypoint.
+Produces a layered OCI image (`amon.tar.gz`) with the executable as entrypoint. The container uses [`tini`](https://github.com/krallin/tini) as init to avoid PID 1 signal-handling issues (which cause `EINTR` errors in TUI apps).
+
+```sh
+# Run with a TTY (required for TUI)
+docker run -it -v $(pwd)/tasks.json:/data/tasks.json amon /data/tasks.json
+```
 
 ## Task Configuration
 
