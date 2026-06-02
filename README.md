@@ -51,6 +51,8 @@ nix bundle .#default --bundler .
 
 Produces a portable bundled executable (`amon-arx`).
 
+> ⚠️ **TUI mode is incompatible with `nix bundle`.** The `nix-user-chroot` wrapper causes `EINTR` crashes in the TUI event loop (see [Known Limitations](#known-limitations)). Use `./build/exec/amon` for local TUI execution, or the OCI container for deployment.
+
 ### OCI Container
 
 ```sh
@@ -156,3 +158,35 @@ This produces `support/amon-idris`, which is copied to `build/exec/amon_app/amon
 | `h` / `l` | Scroll log viewer horizontally |
 | `x` | Cancel selected running job |
 | `q` / `Esc` | Quit |
+
+## Known Limitations
+
+### `nix bundle` and TUI apps are incompatible
+
+The `nix bundle` output produces a self-contained executable (via `nix-user-chroot`), but **it will crash TUI apps** with `Error: Interrupted system call (EINTR)`.
+
+**Why:** `nix-user-chroot` creates a Linux user namespace to provide the Nix store. Inside this namespace, signals like `SIGWINCH` (window resize) and `SIGCHLD` (child process exit) are delivered differently. The Idris2 `async-epoll` library's event loop (`IO.Async.Loop.Epoll`) calls `epollPwait2` via `dieOnErr`, which **does not retry on `EINTR`**:
+
+```idris
+-- IO.Async.Loop.Poller:28-32
+dieOnErr act t =
+  case act t of
+    R r        t => r # t
+    E (Here x) t => ioToF1 (die "Error: \{errorText x} (\{errorName x})") t
+```
+
+When `epoll_pwait2` returns `-EINTR`, the app dies immediately instead of retrying the syscall. This is a **bug in the upstream `linux` and `async-epoll` libraries**.
+
+**Workarounds:**
+- **Do not use `nix bundle` for TUI mode.** Build and run normally: `./build/exec/amon`
+- For deployment, use the **OCI container** output instead (see above).
+- For non-TUI headless operation, the bundle would work if amon supported a `--batch` flag.
+
+**Proper fix:**
+Patch the upstream `linux` C support library (`linux/linux/support/linux.c`) and/or the Idris2 `async-epoll` bindings to retry `epoll_wait`/`epoll_pwait2` on `EINTR`:
+
+1. In `linux.c`, wrap `epoll_pwait2` in a `do { res = epoll_pwait2(...); } while (res == -1 && errno == EINTR);` loop.
+2. Alternatively, in `System.Linux.Epoll.Prim.epollWait`, check if the negative result is `-EINTR` and retry instead of returning `E (inject $ fromNeg r)`.
+3. Or patch `IO.Async.Loop.Epoll.pollWaitImpl` to catch `EINTR` specifically and loop instead of calling `dieOnErr`.
+
+This requires forking `idris2-linux` and `idris2-async-epoll` as flake inputs and pointing the build at the patched versions.
