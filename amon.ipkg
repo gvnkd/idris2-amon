@@ -15,6 +15,7 @@ depends    = base >= 0.5.1
            , json
            , elab-util
            , ansi
+           , optparse-applicative
            , tui
            , tui-async
            , posix

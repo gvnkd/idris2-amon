@@ -5,9 +5,11 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     idris2-withpkgs.url = "github:gvnkd/flake-idris2-withPackages";
+    nix-bundle.url = "github:matthewbauer/nix-bundle";
+    nix-bundle.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, flake-utils, idris2-withpkgs }:
+  outputs = { self, nixpkgs, flake-utils, idris2-withpkgs, nix-bundle }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
@@ -16,6 +18,7 @@
           json
           elab-util
           ansi
+          optparse-applicative
           tui
           tui-async
           posix
@@ -27,6 +30,7 @@
           p.json
           p.elab-util
           p.ansi
+          p.optparse-applicative
           p.tui
           p.tui-async
           p.posix
@@ -88,11 +92,25 @@
           idris2 --build amon.ipkg
           echo "Build complete."
         '';
+
+        container = pkgs.dockerTools.buildLayeredImage {
+          name = "amon";
+          tag = "latest";
+          contents = [ executable ];
+          config = {
+            Entrypoint = [ "${executable}/bin/amon" ];
+          };
+        };
       in
       {
         packages = {
           default = executable;
           lib = pkg.library';
+          inherit container;
+        };
+
+        bundlers = {
+          default = nix-bundle.bundlers.${system}.default;
         };
 
         devShells.default = pkgs.mkShell {
