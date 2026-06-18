@@ -128,7 +128,13 @@
         container = pkgs.dockerTools.buildLayeredImage {
           name = "amon";
           tag = "latest";
-          contents = [ executable pkgs.tini ];
+          contents = [
+            executable
+            pkgs.tini
+            pkgs.coreutils
+            pkgs.bash
+            pkgs.ansible
+          ];
           config = {
             Entrypoint = [ "${pkgs.tini}/bin/tini" "--" "${executable}/bin/amon" ];
           };
