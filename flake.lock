@@ -70,6 +70,32 @@
         "type": "github"
       }
     },
+    "idris2-async-epoll-patched": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1774099211,
+        "narHash": "sha256-98i4ukGi8ypTxSD5dVNl2EIZ2lzXw/4F2OvrrSsACw0=",
+        "type": "tarball",
+        "url": "https://github.com/stefan-hoeck/idris2-async/archive/1cd4007efcce51efc79c2697a925608826f9d75d.tar.gz"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://github.com/stefan-hoeck/idris2-async/archive/1cd4007efcce51efc79c2697a925608826f9d75d.tar.gz"
+      }
+    },
+    "idris2-linux-patched": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1773822516,
+        "narHash": "sha256-EyEcUqhJwTKdNwF1Rl18C4KROpt8jqXJo/tFQMFYke0=",
+        "type": "tarball",
+        "url": "https://github.com/stefan-hoeck/idris2-linux/archive/f34c638ce71f0a46b8b0ef471e2a43e9a91a5853.tar.gz"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://github.com/stefan-hoeck/idris2-linux/archive/f34c638ce71f0a46b8b0ef471e2a43e9a91a5853.tar.gz"
+      }
+    },
     "idris2-pack-db": {
       "flake": false,
       "locked": {
@@ -186,6 +212,8 @@
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
+        "idris2-async-epoll-patched": "idris2-async-epoll-patched",
+        "idris2-linux-patched": "idris2-linux-patched",
         "idris2-withpkgs": "idris2-withpkgs",
         "nix-bundle": "nix-bundle",
         "nixpkgs": "nixpkgs_2"

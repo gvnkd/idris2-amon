@@ -1,0 +1,41 @@
+diff --git a/async-epoll/src/IO/Async/Loop/Epoll.idr b/async-epoll/src/IO/Async/Loop/Epoll.idr
+index e6107d5..f269804 100644
+--- a/async-epoll/src/IO/Async/Loop/Epoll.idr
++++ b/async-epoll/src/IO/Async/Loop/Epoll.idr
+@@ -26,13 +26,24 @@ import public IO.Async.Loop.TimerH
+ 
+ import System
+ import System.Clock
++import System.Linux.Epoll
+ import System.Linux.Epoll.Prim
++import System.Posix.Errno
+ import System.Posix.File.Prim
+ import System.Posix.Limits
+ 
+-%default total
+-
++covering
++retryOnEintr : E1 World [Errno] (List PollPair) -> IO1 (List PollPair)
++retryOnEintr act t =
++  case act t of
++    R vs t       => vs # t
++    E (Here x) t =>
++      if x == EINTR then retryOnEintr act t
++      else ioToF1 (die "Error: \{errorText x} (\{errorName x})") t
++
++%default total
++
+ --------------------------------------------------------------------------------
+ -- Epoll
+ --------------------------------------------------------------------------------
+
+
+@@ -94,7 +105,7 @@ parameters (p : Epoll)
+   -- If we go to sleep, `timeout` will be set to 1 ms.
+   pollWaitImpl : (timeout : Clock Duration) -> IO1 ()
+   pollWaitImpl to t =
+-    let vs # t := dieOnErr (epollPwait2Vals p.epoll p.events to []) t
++    let vs # t := retryOnEintr (epollPwait2Vals p.epoll p.events to []) t
+      in handleEvs vs t
+ 
+   pollImpl : IO1 ()

@@ -1,0 +1,38 @@
+diff --git a/linux/support/linux.c b/linux/support/linux.c
+index b69f41f..ee7f4d4 100644
+--- a/linux/support/linux.c
++++ b/linux/support/linux.c
+@@ -86,7 +86,10 @@ int li_epoll_ctl(int epfd, int op, int fd, uint32_t events) {
+ }
+ 
+ int li_epoll_wait(int epfd, struct epoll_event *evlist, int max, int timeout) {
+-  int res = epoll_wait(epfd, evlist, max, timeout);
++  int res;
++  do {
++    res = epoll_wait(epfd, evlist, max, timeout);
++  } while (res == -1 && errno == EINTR);
+   CHECKRES
+ }
+ 
+@@ -121,13 +124,19 @@ int epoll_pwait2(int epfd, struct epoll_event *events, int maxevents,
+ 
+ int li_epoll_pwait2(int epfd, struct epoll_event *evlist, int max,
+                     const struct timespec *timeout) {
+-  int res = epoll_pwait2(epfd, evlist, max, timeout, NULL);
++  int res;
++  do {
++    res = epoll_pwait2(epfd, evlist, max, timeout, NULL);
++  } while (res == -1 && errno == EINTR);
+   CHECKRES
+ }
+ 
+ int li_epoll_spwait2(int epfd, struct epoll_event *evlist, int max,
+                      const struct timespec *timeout, const sigset_t *sigmask) {
+-  int res = epoll_pwait2(epfd, evlist, max, timeout, sigmask);
++  int res;
++  do {
++    res = epoll_pwait2(epfd, evlist, max, timeout, sigmask);
++  } while (res == -1 && errno == EINTR);
+   CHECKRES
+ }
+ 

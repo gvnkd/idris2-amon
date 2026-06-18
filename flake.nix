@@ -7,9 +7,22 @@
     idris2-withpkgs.url = "github:gvnkd/flake-idris2-withPackages";
     nix-bundle.url = "github:matthewbauer/nix-bundle";
     nix-bundle.inputs.nixpkgs.follows = "nixpkgs";
+
+    # Patched upstream linux lib: retry epoll_wait/epoll_pwait2 on EINTR.
+    # This fixes the Docker/bundle TUI crash caused by unhandled EINTR.
+    idris2-linux-patched = {
+      url = "https://github.com/stefan-hoeck/idris2-linux/archive/f34c638ce71f0a46b8b0ef471e2a43e9a91a5853.tar.gz";
+      flake = false;
+    };
+
+    # Patched async-epoll lib: retry epollPwait2Vals on EINTR in the event loop.
+    idris2-async-epoll-patched = {
+      url = "https://github.com/stefan-hoeck/idris2-async/archive/1cd4007efcce51efc79c2697a925608826f9d75d.tar.gz";
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, idris2-withpkgs, nix-bundle }:
+  outputs = { self, nixpkgs, flake-utils, idris2-withpkgs, nix-bundle, idris2-linux-patched, idris2-async-epoll-patched }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
@@ -21,7 +34,16 @@
           optparse-applicative
           tui
           tui-async
-          posix
+          (linux.overrideAttrs (old: {
+            version = "0.1.0-eintr-patch";
+            src = idris2-linux-patched;
+            patches = (old.patches or []) ++ [ ./patches/linux-eintr-retry.patch ];
+          }))
+          (async-epoll.overrideAttrs (old: {
+            version = "0.1.0-eintr-patch";
+            src = idris2-async-epoll-patched;
+            patches = (old.patches or []) ++ [ ./patches/async-epoll-eintr-retry.patch ];
+          }))
           streams
           streams-posix
         ];
@@ -33,7 +55,16 @@
           p.optparse-applicative
           p.tui
           p.tui-async
-          p.posix
+          (p.linux.overrideAttrs (old: {
+            version = "0.1.0-eintr-patch";
+            src = idris2-linux-patched;
+            patches = (old.patches or []) ++ [ ./patches/linux-eintr-retry.patch ];
+          }))
+          (p.async-epoll.overrideAttrs (old: {
+            version = "0.1.0-eintr-patch";
+            src = idris2-async-epoll-patched;
+            patches = (old.patches or []) ++ [ ./patches/async-epoll-eintr-retry.patch ];
+          }))
           p.streams
           p.streams-posix
         ]);
