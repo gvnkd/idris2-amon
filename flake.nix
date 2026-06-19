@@ -267,12 +267,15 @@
               --set-rpath '/usr/lib/amon' \
               amon/usr/lib/amon/scheme
 
-            cat > amon/usr/bin/amon <<EOF
+            cat > amon/usr/bin/amon <<'WRAPPER'
             #!/usr/bin/env bash
-            export LD_LIBRARY_PATH=/usr/lib/amon:\$LD_LIBRARY_PATH
-            export SCHEMEHEAPDIRS=$heapDir
-            exec /usr/lib/amon/scheme --program /usr/lib/amon/amon.so "\$@"
-            EOF
+            export SCHEMEHEAPDIRS=/usr/lib/amon/lib/csv10.4.1/ta6le
+            # Set LD_LIBRARY_PATH only for the Chez interpreter so that child
+            # processes (e.g. /bin/sh) use the host glibc rather than the
+            # bundled Nix glibc.
+            LD_LIBRARY_PATH=/usr/lib/amon''${LD_LIBRARY_PATH:+:''${LD_LIBRARY_PATH}} \
+              exec /usr/lib/amon/scheme --program /usr/lib/amon/amon.so "$@"
+            WRAPPER
             chmod 0755 amon/usr/bin/amon
 
             cat > amon/DEBIAN/control <<'EOF'
