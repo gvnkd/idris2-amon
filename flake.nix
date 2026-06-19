@@ -267,14 +267,22 @@
               --set-rpath '/usr/lib/amon' \
               amon/usr/lib/amon/scheme
 
+            # Patch every bundled ELF shared object so its dependencies are
+            # resolved from /usr/lib/amon. This lets us avoid LD_LIBRARY_PATH
+            # entirely, preventing child processes (e.g. /bin/sh) from loading
+            # the bundled Nix glibc.
+            for so in amon/usr/lib/amon/*.so; do
+              [ -f "$so" ] || continue
+              if patchelf --print-soname "$so" >/dev/null 2>&1; then
+                chmod +w "$so"
+                patchelf --set-rpath '/usr/lib/amon' "$so"
+              fi
+            done
+
             cat > amon/usr/bin/amon <<'WRAPPER'
             #!/usr/bin/env bash
             export SCHEMEHEAPDIRS=/usr/lib/amon/lib/csv10.4.1/ta6le
-            # Set LD_LIBRARY_PATH only for the Chez interpreter so that child
-            # processes (e.g. /bin/sh) use the host glibc rather than the
-            # bundled Nix glibc.
-            LD_LIBRARY_PATH=/usr/lib/amon''${LD_LIBRARY_PATH:+:''${LD_LIBRARY_PATH}} \
-              exec /usr/lib/amon/scheme --program /usr/lib/amon/amon.so "$@"
+            exec /usr/lib/amon/scheme --program /usr/lib/amon/amon.so "$@"
             WRAPPER
             chmod 0755 amon/usr/bin/amon
 
