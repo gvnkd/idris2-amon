@@ -1,0 +1,22 @@
+diff --git a/src/TUI/Key.idr b/src/TUI/Key.idr
+index a84d727..bba9abc 100644
+--- a/src/TUI/Key.idr
++++ b/src/TUI/Key.idr
+@@ -58,6 +58,8 @@ data Key
+   | Right
+   | Up
+   | Down
++  | PageUp
++  | PageDown
+   | Delete
+   | Enter
+   | Tab
+@@ -109,6 +111,8 @@ ansiDecoder = automaton Default decode
+       [< '\ESC', '[', 'D'] => emit Left
+       [< '\ESC', '[', 'A'] => emit Up
+       [< '\ESC', '[', 'B'] => emit Down
++      [< '\ESC', '[', '5', '~'] => emit PageUp
++      [< '\ESC', '[', '6', '~'] => emit PageDown
+       _                    => reset
+     -- single-char matches below here
+     decode '\ESC' self = escape '\ESC' self

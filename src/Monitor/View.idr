@@ -57,15 +57,18 @@ View LogLine where
     showTextAt (window.nw.shiftRight (the Integer $ cast $ length line.stream)) line.text
 
 covering
-paintJobList : Rect -> List JobEntry -> Nat -> Nat -> Context ()
-paintJobList _ [] _ _ = pure ()
-paintJobList window (entry :: entries) selectedIdx currentIdx =
+paintJobList : Rect -> List JobEntry -> Nat -> Nat -> Nat -> Context ()
+paintJobList _ [] _ _ _ = pure ()
+paintJobList window (entry :: entries) selectedIdx currentIdx offset =
   if window.height == 0
     then pure ()
-    else do
-      let st = if currentIdx == selectedIdx then Focused else Normal
-      remaining <- packTop st window entry
-      paintJobList remaining entries selectedIdx (currentIdx + 1)
+    else
+      if currentIdx < offset
+        then paintJobList window entries selectedIdx (currentIdx + 1) offset
+        else do
+          let st = if currentIdx == selectedIdx then Focused else Normal
+          remaining <- packTop st window entry
+          paintJobList remaining entries selectedIdx (currentIdx + 1) offset
 
 covering
 paintLogLines : Rect -> Nat -> List LogLine -> Context ()
@@ -80,6 +83,12 @@ paintLogLines window colOffset (line :: rest) =
 
 autoScrollOffset : Nat -> Nat -> List LogLine -> Nat
 autoScrollOffset viewH scrollUp logs = minus (length logs) viewH `minus` scrollUp
+
+scrollLogs : Nat -> Nat -> List LogLine -> List LogLine
+scrollLogs viewH offset logs =
+  let autoOff = autoScrollOffset viewH 0 logs
+      start = minus autoOff offset
+   in drop start logs
 
 showCountAt : Pos -> Color -> Nat -> Context Pos
 showCountAt pos color n = do
@@ -124,17 +133,17 @@ View JobMonitorState where
     legendArea <- packTop Normal legendArea HRule
     let (legendText, _) = legendArea.splitLeft 40
     showTextAt legendText.nw
-      "\x2191\x2193:jobs  j/k:vscroll  h/l:hscroll  x:cancel  q:quit"
+      "\x2191\x2193:jobs  j/k:vscroll  h/l:hscroll  PgUp/PgDn:page  x:cancel  q:quit"
     let (left, mid) = content.splitLeft st.leftColWidth
     let (sep, right) = mid.splitLeft 1
     case st.jobs of
       [] => do
         showTextAt left.nw "No jobs available"
-      _  => paintJobList left st.jobs st.selected 0
+      _  => paintJobList left st.jobs st.selected 0 st.jobOffset
     paint Normal sep VRule
     let logs = getSelectedLogs st
     case logs of
       [] => do
         showTextAt right.nw "No log output"
-      _  => paintLogLines right st.logColOffset (drop (autoScrollOffset right.height st.logOffset logs) logs)
+      _  => paintLogLines right st.logColOffset (scrollLogs right.height st.logOffset logs)
     sgr [Reset]

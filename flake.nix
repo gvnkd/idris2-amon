@@ -20,9 +20,14 @@
       url = "https://github.com/stefan-hoeck/idris2-async/archive/1cd4007efcce51efc79c2697a925608826f9d75d.tar.gz";
       flake = false;
     };
+    # Patched tui-async lib: add PageUp/PageDown key decoding.
+    idris2-tui-async-patched = {
+      url = "https://github.com/stefan-hoeck/idris2-tui/archive/aac912e4581dc3fb8b02e12bb984006500d6c2bb.tar.gz";
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, idris2-withpkgs, nix-bundle, idris2-linux-patched, idris2-async-epoll-patched }:
+  outputs = { self, nixpkgs, flake-utils, idris2-withpkgs, nix-bundle, idris2-linux-patched, idris2-async-epoll-patched, idris2-tui-async-patched }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
@@ -33,7 +38,15 @@
           ansi
           optparse-applicative
           tui
-          tui-async
+          (tui.overrideAttrs (old: {
+            version = "0.1.0-pageup-pagedown-patch";
+            src = idris2-tui-async-patched;
+            patches = (old.patches or []) ++ [ ./patches/tui-key-pageup-pagedown.patch ];
+          }))
+          (tui-async.overrideAttrs (old: {
+            version = "0.1.0-pageup-pagedown-patch";
+            src = idris2-tui-async-patched;
+          }))
           (linux.overrideAttrs (old: {
             version = "0.1.0-eintr-patch";
             src = idris2-linux-patched;
@@ -54,7 +67,15 @@
           p.ansi
           p.optparse-applicative
           p.tui
-          p.tui-async
+          (p.tui.overrideAttrs (old: {
+            version = "0.1.0-pageup-pagedown-patch";
+            src = idris2-tui-async-patched;
+            patches = (old.patches or []) ++ [ ./patches/tui-key-pageup-pagedown.patch ];
+          }))
+          (p.tui-async.overrideAttrs (old: {
+            version = "0.1.0-pageup-pagedown-patch";
+            src = idris2-tui-async-patched;
+          }))
           (p.linux.overrideAttrs (old: {
             version = "0.1.0-eintr-patch";
             src = idris2-linux-patched;

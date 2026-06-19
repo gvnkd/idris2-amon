@@ -66,6 +66,7 @@ record JobMonitorState where
   selected     : Nat
   jobLogs      : List (List LogLine)
   jobPids      : List (Maybe Int)
+  jobOffset    : Nat
   logOffset    : Nat
   logColOffset : Nat
   allDone      : Bool
@@ -89,7 +90,7 @@ public export
 initialState : String -> Nat -> List JobEntry -> JobMonitorState
 initialState batchName leftColWidth jobs =
   MkJobMonitorState batchName leftColWidth jobs 0 (replicate (length jobs) [])
-    (replicate (length jobs) Nothing) 0 0 False False
+    (replicate (length jobs) Nothing) 0 0 0 False False
 
 public export
 countByStatus : JobDisplayStatus -> List JobEntry -> Nat

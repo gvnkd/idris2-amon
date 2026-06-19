@@ -29,13 +29,19 @@ onKey Up st =
   let newSel = case st.selected of
                  0   => 0
                  S n => n
-  in update $ { selected := newSel, logOffset := 0, logColOffset := 0 } st
+      newOffset = if newSel < st.jobOffset then newSel else st.jobOffset
+  in update $ { selected := newSel, jobOffset := newOffset, logOffset := 0, logColOffset := 0 } st
 onKey Down st =
   let maxIdx = case length st.jobs of
                  0   => 0
                  S n => n
       newSel = min maxIdx (st.selected + 1)
-  in update $ { selected := newSel, logOffset := 0, logColOffset := 0 } st
+      viewH  = 10
+      newOffset = if newSel >= st.jobOffset + viewH
+                    then S (newSel `minus` viewH)
+                    else st.jobOffset
+  in update $ { selected := newSel, jobOffset := newOffset, logOffset := 0, logColOffset := 0 } st
+
 onKey (Alpha 'k') st =
   let newOffset = st.logOffset + 1
   in update $ { logOffset := newOffset } st
@@ -43,6 +49,16 @@ onKey (Alpha 'j') st =
   let newOffset = case st.logOffset of
                     0   => 0
                     S n => n
+  in update $ { logOffset := newOffset } st
+onKey PageUp st =
+  let viewH = 10
+      newOffset = st.logOffset + viewH
+  in update $ { logOffset := newOffset } st
+onKey PageDown st =
+  let viewH = 10
+      newOffset = case st.logOffset of
+                    0   => 0
+                    S n => n `minus` viewH
   in update $ { logOffset := newOffset } st
 onKey (Alpha 'l') st =
   let newOffset = st.logColOffset + 4
