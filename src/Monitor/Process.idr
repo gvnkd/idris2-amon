@@ -15,21 +15,6 @@ import IO.Async.Util
 import System.Posix.File
 import System.Posix.Process
 
-%foreign "C:amon_pipe_track,amon-idris"
-prim__pipe_track : AnyPtr -> PrimIO CInt
-
-%foreign "C:fork,libc"
-prim__fork : PrimIO Int
-
-%foreign "C:_exit,libc"
-prim__exit : Int -> PrimIO ()
-
-%foreign "C:execvp,libc"
-prim__execvp : String -> AnyPtr -> PrimIO Int
-
-%foreign "C:dup2,libc"
-prim__dup2 : Int -> Int -> PrimIO Int
-
 %foreign "C:amon_close_track,amon-idris"
 prim__close_track : Int -> PrimIO Int
 
@@ -47,6 +32,9 @@ prim__cstr_write : Int -> String -> PrimIO CInt
 
 %foreign "C:amon_cstr_timestamp,amon-idris"
 prim__cstr_timestamp : PrimIO String
+
+%foreign "C:amon_spawn_child,amon-idris"
+prim__amon_spawn_child : String -> AnyPtr -> Int -> PrimIO Int
 
 public export
 record ProcInfo where
@@ -130,45 +118,25 @@ spawnCmd task = do
                               wrapped := "{ echo '" ++ header ++ "' > " ++ lp ++ "; " ++
                                          baseCmd ++ " 2>&1 | tee -a " ++ lp ++ "; }"
                           in (wrapped, Just lp)
-  pipeArr <- malloc Fd 2
-  rc <- primIO $ prim__pipe_track (unsafeUnwrap pipeArr)
+  fdsArr <- malloc Fd 2
+  rc <- primIO $ prim__amon_spawn_child cmd (unsafeUnwrap fdsArr) 0
   if rc < 0
     then do
-      free pipeArr
+      free fdsArr
       pure Nothing
     else do
       Just buf <- newBuffer 8 | Nothing => do
-        free pipeArr
+        free fdsArr
         pure Nothing
-      primIO $ prim__copy_pb (unsafeUnwrap pipeArr) buf 8
-      free pipeArr
+      primIO $ prim__copy_pb (unsafeUnwrap fdsArr) buf 8
+      free fdsArr
       readBits <- getBits32 buf 0
-      writeBits <- getBits32 buf 4
+      pidBits  <- getBits32 buf 4
       let readFd  = the Int (cast readBits)
-          writeFd = the Int (cast writeBits)
-      childPid <- primIO prim__fork
-      if childPid == 0
-        then do
-          _ <- primIO $ prim__close_track readFd
-          _ <- primIO $ prim__dup2 writeFd 1
-          _ <- primIO $ prim__dup2 writeFd 2
-          _ <- primIO $ prim__close_track writeFd
-          let blk = fromMaybe True task.blockingIO
-          when blk $ do
-            devnull <- primIO $ prim__open "/dev/null" 0
-            _ <- primIO $ prim__dup2 devnull 0
-            _ <- primIO $ prim__close_track devnull
-            pure ()
-          argsArr <- fromList [Just "sh", Just "-c", Just cmd, Nothing]
-          _ <- primIO $ prim__execvp "/bin/sh" (unsafeUnwrap argsArr)
-          free argsArr
-          primIO $ prim__exit 127
-          pure Nothing
-        else do
-          _ <- primIO $ prim__close_track writeFd
-          flags <- primIO $ prim__fcntl readFd 3
-          _ <- primIO $ prim__fcntl_set readFd 4 (flags .|. 2048)
-          pure $ Just $ MkProcInfo task.name (MkFd readBits) childPid "" task.logFile
+          childPid = the Int (cast pidBits)
+      flags <- primIO $ prim__fcntl readFd 3
+      _ <- primIO $ prim__fcntl_set readFd 4 (flags .|. 2048)
+      pure $ Just $ MkProcInfo task.name (MkFd readBits) childPid "" task.logFile
 
 export
 splitOutput : String -> String -> (List String, String)

@@ -71,6 +71,10 @@ int amon_spawn_child(const char *cmd, int *fds_out, int flags) {
             }
         }
 
+        /* Children must use the host system libraries, not the bundled
+         * Nix libraries from /usr/lib/amon. */
+        unsetenv("LD_LIBRARY_PATH");
+
         execl("/bin/sh", "sh", "-c", cmd, (char *)NULL);
         _exit(127);
     }
