@@ -201,7 +201,7 @@
         amonDeb = pkgs.stdenvNoCC.mkDerivation {
           name = "amon-${version}.deb";
           inherit version;
-          nativeBuildInputs = [ pkgs.dpkg ];
+          nativeBuildInputs = [ pkgs.dpkg pkgs.patchelf ];
           dontUnpack = true;
           buildPhase = ''
             mkdir -p amon/DEBIAN
@@ -213,6 +213,13 @@
             # /nix/store paths for LD_LIBRARY_PATH.
             cp -L ${executable}/bin/.amon-wrapped_ amon/usr/bin/amon-real
             cp -L ${executable}/lib/amon-idris.so amon/usr/lib/amon/
+
+            # Patch interpreter and RPATH so the binary works outside NixOS.
+            chmod +w amon/usr/bin/amon-real
+            patchelf \
+              --set-interpreter /lib64/ld-linux-x86-64.so.2 \
+              --set-rpath '/usr/lib/amon' \
+              amon/usr/bin/amon-real
 
             cat > amon/usr/bin/amon <<'EOF'
             #!/usr/bin/env bash
