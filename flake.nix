@@ -142,38 +142,54 @@
 
         allDepLibDirs = pkgs.lib.concatMapStringsSep " " (p: "${p}/lib") pkg.executable.propagatedIdrisLibraries;
 
+        supportDir = "${pkgs.idris2Packages.idris2.unwrapped.libidris2_support}/lib";
+
+        # Build the unwrapped binary directly; avoid makeBinaryWrapper so the
+        # resulting ELF is portable and can be packaged in a .deb.
         executable = pkg.executable.overrideAttrs (old: {
-          postFixup = ''
-            ${old.postFixup or ""}
-            # Create .so symlinks in $out/lib for Chez FFI loader
-            mkdir -p $out/lib
-            for f in $out/bin/*; do
-              if [ -f "$f" ] && [ ! -L "$f" ] && [ -x "$f" ]; then
-                base=$(basename "$f")
-                if [ -f "${./.}/support/$base" ] || [ -f "${./.}/support/$base.c" ]; then
-                  # buildIdris wraps all .so files with makeBinaryWrapper;
-                  # point the symlink at the unwrapped ELF shared object so
-                  # Chez Scheme's dlopen can load it.
-                  if [ -f "$out/bin/.$base-wrapped" ]; then
-                    ln -s "../bin/.$base-wrapped" "$out/lib/$base.so"
-                  else
-                    ln -s "$f" "$out/lib/$base.so"
-                  fi
-                fi
+          nativeBuildInputs = (old.nativeBuildInputs or []) ++ [ pkgs.makeWrapper ];
+          installPhase = ''
+            runHook preInstall
+            mkdir -p $out/bin $out/lib
+
+            scheme_app="$(find ./build/exec -name '*_app')"
+            if [ "$scheme_app" = ''' ]; then
+              mv -- build/exec/* $out/bin/
+              chmod +x $out/bin/*
+            else
+              cd "$scheme_app"
+              rm -f ./libidris2_support.{so,dylib}
+              for file in *.so; do
+                bin_name="''${file%.so}"
+                mv -- "$file" "$out/bin/.$bin_name-wrapped"
+                makeWrapper "$out/bin/.$bin_name-wrapped" "$out/bin/$bin_name" \
+                  --prefix LD_LIBRARY_PATH ':' "$out/lib:${depLibPath}:${supportDir}"
+              done
+            fi
+
+            # Symlink all transitive dependency *.so files into $out/lib so
+            # Chez Scheme's (load-shared-object) can find them by name.
+            for libdir in ${allDepLibDirs}; do
+              for so in "$libdir"/*.so; do
+                [ -f "$so" ] || continue
+                base=$(basename "$so")
+                [ -e "$out/lib/$base" ] || ln -s "$so" "$out/lib/$base"
+              done
+            done
+
+            # Symlink local FFI shared objects (e.g. amon-idris) into $out/lib
+            # under their bare basename so dlopen finds them.
+            for wrapped in $out/bin/.*-wrapped; do
+              [ -f "$wrapped" ] || continue
+              base=$(basename "$wrapped")
+              libname=''${base#.}
+              libname=''${libname%-wrapped}
+              if [ -f "${./.}/support/$libname" ] || [ -f "${./.}/support/$libname.c" ]; then
+                [ -e "$out/lib/$libname.so" ] || ln -s "$wrapped" "$out/lib/$libname.so"
               fi
             done
-            # Add dependency and local lib dirs to LD_LIBRARY_PATH in wrappers
-            for prog in $out/bin/*; do
-              if [ -f "$prog" ] && [ -x "$prog" ] && [ ! -L "$prog" ]; then
-                base=$(basename "$prog")
-                # Don't wrap support libraries — they must remain valid ELF shared
-                # objects so Chez Scheme's dlopen can load them.
-                if [ ! -f "${./.}/support/$base" ] && [ ! -f "${./.}/support/$base.c" ]; then
-                  wrapProgram "$prog" \
-                    --prefix LD_LIBRARY_PATH ':' "$out/lib:${depLibPath}"
-                fi
-              fi
-            done
+
+            runHook postInstall
           '';
         });
 
@@ -201,21 +217,34 @@
         amonDeb = pkgs.stdenvNoCC.mkDerivation {
           name = "amon-${version}.deb";
           inherit version;
-          nativeBuildInputs = [ pkgs.dpkg pkgs.patchelf ];
+          nativeBuildInputs = [ pkgs.dpkg pkgs.patchelf pkgs.glibc.bin ];
           dontUnpack = true;
           buildPhase = ''
             mkdir -p amon/DEBIAN
             mkdir -p amon/usr/bin
             mkdir -p amon/usr/lib/amon
 
-            # Copy the wrapped ELF binary and runtime shared objects.
-            # We ship our own wrapper script because the Nix wrapper hardcodes
-            # /nix/store paths for LD_LIBRARY_PATH.
-            cp -L ${executable}/bin/.amon-wrapped_ amon/usr/bin/amon-real
+            # The Chez backend produces a program object (bin/.amon-wrapped)
+            # with a #! shebang to the Chez scheme binary. Ship both the
+            # runtime and the program object so amon runs on non-NixOS.
+            cp -L ${executable}/bin/.amon-wrapped amon/usr/lib/amon/amon.so
+            chmod +w amon/usr/lib/amon/amon.so
+
+            # Extract the exact Chez binary path from the shebang and ship it
+            # together with its boot files so the runtime is self-contained.
+            chezPath=$(head -1 ${executable}/bin/.amon-wrapped | sed 's|^#!||; s| --program.*||')
+            chezStore=$(dirname "$(dirname "$chezPath")")
+            cp -L "$chezPath" amon/usr/lib/amon/scheme
+            chmod +w amon/usr/lib/amon/scheme
+            cp -r "$chezStore/lib" amon/usr/lib/amon/lib
+            heapDir=$(dirname "$(find amon/usr/lib/amon/lib -name scheme.boot | head -1)")
+            heapDir=''${heapDir#amon}
+
+            # Copy the local FFI shared object(s) (e.g. amon-idris.so).
             cp -L ${executable}/lib/amon-idris.so amon/usr/lib/amon/
 
-            # Collect every transitive *.so the executable needs at runtime
-            # (cptr, elin, posix, linux, etc.) into /usr/lib/amon.
+            # Collect every transitive Idris FFI *.so (cptr, linux, posix, etc.)
+            # and the Idris2 support library into /usr/lib/amon.
             for libdir in ${allDepLibDirs}; do
               for so in "$libdir"/*.so; do
                 [ -f "$so" ] || continue
@@ -223,26 +252,28 @@
                 [ -e "amon/usr/lib/amon/$base" ] || cp -L "$so" "amon/usr/lib/amon/$base"
               done
             done
-
-            # Idris2 support library is linked dynamically by Chez-generated
-            # binaries; ship it alongside the FFI libs.
             cp -L ${pkgs.idris2Packages.idris2.unwrapped.libidris2_support}/lib/libidris2_support.so amon/usr/lib/amon/
 
+            # Ship the shared libraries Chez itself needs.
+            for lib in $(ldd "$chezPath" | awk '{print $3}' | grep -E '^/nix/store/' | sort -u); do
+              cp -L "$lib" amon/usr/lib/amon/
+            done
 
-            # Patch interpreter and RPATH so the binary works outside NixOS.
-            chmod +w amon/usr/bin/amon-real
+            # Patch the Chez interpreter so it uses the bundled dynamic linker
+            # and glibc (Nix glibc is newer than Debian's) and finds all bundled
+            # libraries in /usr/lib/amon.
             patchelf \
-              --set-interpreter /lib64/ld-linux-x86-64.so.2 \
+              --set-interpreter /usr/lib/amon/ld-linux-x86-64.so.2 \
               --set-rpath '/usr/lib/amon' \
-              amon/usr/bin/amon-real
+              amon/usr/lib/amon/scheme
 
-            cat > amon/usr/bin/amon <<'EOF'
+            cat > amon/usr/bin/amon <<EOF
             #!/usr/bin/env bash
-            export LD_LIBRARY_PATH=/usr/lib/amon:$LD_LIBRARY_PATH
-            exec /usr/bin/amon-real "$@"
+            export LD_LIBRARY_PATH=/usr/lib/amon:\$LD_LIBRARY_PATH
+            export SCHEMEHEAPDIRS=$heapDir
+            exec /usr/lib/amon/scheme --program /usr/lib/amon/amon.so "\$@"
             EOF
             chmod 0755 amon/usr/bin/amon
-            chmod 0755 amon/usr/bin/amon-real
 
             cat > amon/DEBIAN/control <<'EOF'
             Package: amon
@@ -257,7 +288,7 @@
              playbooks and other shell tasks.
             EOF
 
-            dpkg-deb --build amon
+            dpkg-deb --root-owner-group --build amon
           '';
           installPhase = ''
             mkdir -p $out
