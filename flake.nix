@@ -25,9 +25,15 @@
       url = "https://github.com/stefan-hoeck/idris2-tui/archive/aac912e4581dc3fb8b02e12bb984006500d6c2bb.tar.gz";
       flake = false;
     };
+
+    # async-posix source for EINTR retry patch.
+    idris2-async-posix-patched = {
+      url = "https://github.com/stefan-hoeck/idris2-async/archive/1cd4007efcce51efc79c2697a925608826f9d75d.tar.gz";
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, idris2-withpkgs, nix-bundle, idris2-linux-patched, idris2-async-epoll-patched, idris2-tui-async-patched }:
+  outputs = { self, nixpkgs, flake-utils, idris2-withpkgs, nix-bundle, idris2-linux-patched, idris2-async-epoll-patched, idris2-tui-async-patched, idris2-async-posix-patched }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
@@ -86,6 +92,7 @@
         }))
         (async-posix.overrideAttrs (old: {
           version = "0.1.0-eintr-patch";
+          src = idris2-async-posix-patched;
           patches = (old.patches or []) ++ [ ./patches/async-posix-eintr-retry.patch ];
         }))
         streams
@@ -111,6 +118,7 @@
         }))
         (p.async-posix.overrideAttrs (old: {
           version = "0.1.0-eintr-patch";
+          src = idris2-async-posix-patched;
           patches = (old.patches or []) ++ [ ./patches/async-posix-eintr-retry.patch ];
         }))
         p.streams

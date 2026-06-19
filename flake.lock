@@ -83,6 +83,19 @@
         "url": "https://github.com/stefan-hoeck/idris2-async/archive/1cd4007efcce51efc79c2697a925608826f9d75d.tar.gz"
       }
     },
+    "idris2-async-posix-patched": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1774099211,
+        "narHash": "sha256-98i4ukGi8ypTxSD5dVNl2EIZ2lzXw/4F2OvrrSsACw0=",
+        "type": "tarball",
+        "url": "https://github.com/stefan-hoeck/idris2-async/archive/1cd4007efcce51efc79c2697a925608826f9d75d.tar.gz"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://github.com/stefan-hoeck/idris2-async/archive/1cd4007efcce51efc79c2697a925608826f9d75d.tar.gz"
+      }
+    },
     "idris2-linux-patched": {
       "flake": false,
       "locked": {
@@ -226,6 +239,7 @@
       "inputs": {
         "flake-utils": "flake-utils",
         "idris2-async-epoll-patched": "idris2-async-epoll-patched",
+        "idris2-async-posix-patched": "idris2-async-posix-patched",
         "idris2-linux-patched": "idris2-linux-patched",
         "idris2-tui-async-patched": "idris2-tui-async-patched",
         "idris2-withpkgs": "idris2-withpkgs",
