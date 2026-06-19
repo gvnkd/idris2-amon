@@ -208,11 +208,15 @@
             mkdir -p amon/usr/bin
             mkdir -p amon/usr/lib/amon
 
-            # Copy the wrapped ELF binary and our only runtime shared object.
+            # Copy the wrapped ELF binary and runtime shared objects.
             # We ship our own wrapper script because the Nix wrapper hardcodes
             # /nix/store paths for LD_LIBRARY_PATH.
             cp -L ${executable}/bin/.amon-wrapped_ amon/usr/bin/amon-real
             cp -L ${executable}/lib/amon-idris.so amon/usr/lib/amon/
+
+            # Idris2 support library is linked dynamically by Chez-generated
+            # binaries; ship it alongside the FFI libs.
+            cp -L ${pkgs.idris2Packages.idris2.unwrapped.libidris2_support}/lib/libidris2_support.so amon/usr/lib/amon/
 
             # Patch interpreter and RPATH so the binary works outside NixOS.
             chmod +w amon/usr/bin/amon-real
