@@ -5,3 +5,7 @@ build/
 logs/
 support/amon-idris
 support/amon-idris.o
+.opencode/
+amon-arx
+result
+result-*
