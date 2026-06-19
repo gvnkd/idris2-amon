@@ -11,10 +11,12 @@ index a84d727..bba9abc 100644
    | Delete
    | Enter
    | Tab
-@@ -109,6 +111,8 @@ ansiDecoder = automaton Default decode
+@@ -109,6 +111,10 @@ ansiDecoder = automaton Default decode
        [< '\ESC', '[', 'D'] => emit Left
        [< '\ESC', '[', 'A'] => emit Up
        [< '\ESC', '[', 'B'] => emit Down
++      [< '\ESC', '[', '5'] => escape c self
++      [< '\ESC', '[', '6'] => escape c self
 +      [< '\ESC', '[', '5', '~'] => emit PageUp
 +      [< '\ESC', '[', '6', '~'] => emit PageDown
        _                    => reset

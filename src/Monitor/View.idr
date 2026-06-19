@@ -8,6 +8,7 @@ import Monitor.Types
 import Monitor.Process
 import Protocol
 import Data.List
+import Data.String
 
 View JobDisplayStatus where
   size _ = MkArea 2 1
@@ -78,7 +79,7 @@ paintLogLines window colOffset (line :: rest) =
     then pure ()
     else do
       let (top, bottom) = window.splitTop 1
-      showTextAt top.nw $ truncateAnsi window.width line.text
+      showTextAt top.nw $ truncateAnsi window.width (strSubstr (cast colOffset) (strLength line.text) line.text)
       paintLogLines bottom colOffset rest
 
 autoScrollOffset : Nat -> Nat -> List LogLine -> Nat

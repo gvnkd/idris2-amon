@@ -31,64 +31,91 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
+      idrisPkgs = idris2-withpkgs.packages.${system};
 
-        idrisLibraries = with idris2-withpkgs.packages.${system}; [
-          json
-          elab-util
-          ansi
-          optparse-applicative
-          tui
-          (tui.overrideAttrs (old: {
-            version = "0.1.0-pageup-pagedown-patch";
-            src = idris2-tui-async-patched;
-            patches = (old.patches or []) ++ [ ./patches/tui-key-pageup-pagedown.patch ];
-          }))
-          (tui-async.overrideAttrs (old: {
-            version = "0.1.0-pageup-pagedown-patch";
-            src = idris2-tui-async-patched;
-          }))
-          (linux.overrideAttrs (old: {
-            version = "0.1.0-eintr-patch";
-            src = idris2-linux-patched;
-            patches = (old.patches or []) ++ [ ./patches/linux-eintr-retry.patch ];
-          }))
-          (async-epoll.overrideAttrs (old: {
-            version = "0.1.0-eintr-patch";
-            src = idris2-async-epoll-patched;
-            patches = (old.patches or []) ++ [ ./patches/async-epoll-eintr-retry.patch ];
-          }))
-          streams
-          streams-posix
+        tuiPatched = (pkgs.idris2Packages.buildIdris {
+          src = idris2-tui-async-patched;
+          ipkgName = "tui";
+          version = "0.1.0-pageup-pagedown-patch";
+          idrisLibraries = with idrisPkgs; [
+            ansi
+            json
+            elab-util
+            quantifiers-extra
+          ];
+          patches = [ ./patches/tui-key-pageup-pagedown.patch ];
+          nativeBuildInputs = [ pkgs.gcc ];
+          postInstall = ''
+            mkdir -p $out/lib
+            cp lib/*.so $out/lib/ 2>/dev/null || true
+          '';
+        }).library { withSource = true; };
+
+      # tui-async must be compiled against the patched tui so it sees
+      # the PageUp/PageDown constructors; overrideAttrs cannot replace
+      # buildIdris dependencies, so rebuild it from the patched source.
+      tuiAsyncPatched = (pkgs.idris2Packages.buildIdris {
+        src = idris2-tui-async-patched;
+        ipkgName = "tui-async";
+        version = "0.1.0-pageup-pagedown-patch";
+        idrisLibraries = [
+          tuiPatched
+          idrisPkgs.posix
+          idrisPkgs.async
+          idrisPkgs.async-epoll
         ];
+        preBuild = "cd tui-async";
+      }).library { withSource = true; };
 
-        idris2Wrapped = idris2-withpkgs.lib.${system}.withPackages (p: [
-          p.json
-          p.elab-util
-          p.ansi
-          p.optparse-applicative
-          p.tui
-          (p.tui.overrideAttrs (old: {
-            version = "0.1.0-pageup-pagedown-patch";
-            src = idris2-tui-async-patched;
-            patches = (old.patches or []) ++ [ ./patches/tui-key-pageup-pagedown.patch ];
-          }))
-          (p.tui-async.overrideAttrs (old: {
-            version = "0.1.0-pageup-pagedown-patch";
-            src = idris2-tui-async-patched;
-          }))
-          (p.linux.overrideAttrs (old: {
-            version = "0.1.0-eintr-patch";
-            src = idris2-linux-patched;
-            patches = (old.patches or []) ++ [ ./patches/linux-eintr-retry.patch ];
-          }))
-          (p.async-epoll.overrideAttrs (old: {
-            version = "0.1.0-eintr-patch";
-            src = idris2-async-epoll-patched;
-            patches = (old.patches or []) ++ [ ./patches/async-epoll-eintr-retry.patch ];
-          }))
-          p.streams
-          p.streams-posix
-        ]);
+      idrisLibraries = with idrisPkgs; [
+        json
+        elab-util
+        ansi
+        optparse-applicative
+        tuiPatched
+        tuiAsyncPatched
+        (linux.overrideAttrs (old: {
+          version = "0.1.0-eintr-patch";
+          src = idris2-linux-patched;
+          patches = (old.patches or []) ++ [ ./patches/linux-eintr-retry.patch ];
+        }))
+        (async-epoll.overrideAttrs (old: {
+          version = "0.1.0-eintr-patch";
+          src = idris2-async-epoll-patched;
+          patches = (old.patches or []) ++ [ ./patches/async-epoll-eintr-retry.patch ];
+        }))
+        (async-posix.overrideAttrs (old: {
+          version = "0.1.0-eintr-patch";
+          patches = (old.patches or []) ++ [ ./patches/async-posix-eintr-retry.patch ];
+        }))
+        streams
+        streams-posix
+      ];
+
+      idris2Wrapped = idris2-withpkgs.lib.${system}.withPackages (p: [
+        p.json
+        p.elab-util
+        p.ansi
+        p.optparse-applicative
+        tuiPatched
+        tuiAsyncPatched
+        (p.linux.overrideAttrs (old: {
+          version = "0.1.0-eintr-patch";
+          src = idris2-linux-patched;
+          patches = (old.patches or []) ++ [ ./patches/linux-eintr-retry.patch ];
+        }))
+        (p.async-epoll.overrideAttrs (old: {
+          version = "0.1.0-eintr-patch";
+          src = idris2-async-epoll-patched;
+          patches = (old.patches or []) ++ [ ./patches/async-epoll-eintr-retry.patch ];
+        }))
+        (p.async-posix.overrideAttrs (old: {
+          version = "0.1.0-eintr-patch";
+          patches = (old.patches or []) ++ [ ./patches/async-posix-eintr-retry.patch ];
+        }))
+        p.streams
+        p.streams-posix
+      ]);
 
         pkg = pkgs.idris2Packages.buildIdris {
           src = ./.;

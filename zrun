@@ -202,7 +202,7 @@ cmd_start() {
   local pane_id
   pane_id=$(wait_for_pane 20)
   info "Launching amon in pane $pane_id..."
-  LAUNCH_CMD="$APP_BIN"
+  LAUNCH_CMD="$APP_BIN${TASKS_JSON:+ $TASKS_JSON}"
   if $NO_DETAIL; then
     LAUNCH_CMD="$LAUNCH_CMD --no-detail"
   fi
@@ -233,7 +233,7 @@ cmd_rebuild() {
   local pane_id
   pane_id=$(wait_for_pane 20)
   info "Launching amon in pane $pane_id..."
-  zj action write-chars --pane-id "$pane_id" "$APP_BIN"
+  zj action write-chars --pane-id "$pane_id" "$APP_BIN${TASKS_JSON:+ $TASKS_JSON}"
   zj action send-keys --pane-id "$pane_id" Enter
 
   info "Session running."

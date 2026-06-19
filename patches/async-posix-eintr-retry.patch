@@ -1,0 +1,40 @@
+diff --git a/async-posix/src/IO/Async/Posix.idr b/async-posix/src/IO/Async/Posix.idr
+index abcdefg..1234567 100644
+--- a/async-posix/src/IO/Async/Posix.idr
++++ b/async-posix/src/IO/Async/Posix.idr
+@@ -57,7 +57,7 @@ parameters {auto has : Has Errno es}
+   readnb r n =
+     attempt (read {es = [Errno]} fd r n) >>= \case
+       Left (Here x) =>
+-        if x == EAGAIN || x == EWOULDBLOCK
++        if x == EAGAIN || x == EWOULDBLOCK || x == EINTR
+            then onEvent POLLIN (read fd r n)
+            else throw x
+       Right res => pure res
+@@ -74,7 +74,7 @@ parameters {auto has : Has Errno es}
+   readRawNb buf =
+     attempt (readRaw {es = [Errno]} fd buf) >>= \case
+       Left (Here x) =>
+-        if x == EAGAIN || x == EWOULDBLOCK
++        if x == EAGAIN || x == EWOULDBLOCK || x == EINTR
+            then onEvent POLLIN (readRaw fd buf)
+            else throw x
+       Right res => pure res
+@@ -92,7 +92,7 @@ parameters {auto has : Has Errno es}
+   readPtrNB r p =
+     attempt (readPtr {es = [Errno]} fd r p) >>= \case
+       Left (Here x) =>
+-        if x == EAGAIN || x == EWOULDBLOCK
++        if x == EAGAIN || x == EWOULDBLOCK || x == EINTR
+            then onEvent POLLIN (readPtr fd r p)
+            else throw x
+       Right res => pure res
+@@ -112,7 +112,7 @@ parameters {auto has : Has Errno es}
+   writenb v =
+     attempt (write {es = [Errno]} fd v) >>= \case
+       Left (Here x) =>
+-        if x == EAGAIN || x == EWOULDBLOCK
++        if x == EAGAIN || x == EWOULDBLOCK || x == EINTR
+            then onEvent POLLOUT (write fd v)
+            else throw x
+       Right res => pure res
