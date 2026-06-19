@@ -35,7 +35,7 @@ set -euo pipefail
 SESSION="amon-tui"
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_BIN="${APP_DIR}/build/exec/amon"
-BUILD_CMD="idris2 --build amon.ipkg 2>&1 && echo SUCCESS || echo FAILED"
+BUILD_CMD="nix build .#default 2>&1 && mkdir -p build/exec && cp result/bin/amon build/exec/amon && echo SUCCESS || echo FAILED"
 NO_DETAIL=false
 
 # --- helpers ---

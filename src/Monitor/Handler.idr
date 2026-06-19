@@ -29,6 +29,7 @@ onKey Up st =
   let newSel = case st.selected of
                  0   => 0
                  S n => n
+      viewH  = st.termSize.height `minus` 6
       newOffset = if newSel < st.jobOffset then newSel else st.jobOffset
   in update $ { selected := newSel, jobOffset := newOffset, logOffset := 0, logColOffset := 0 } st
 onKey Down st =
@@ -36,14 +37,16 @@ onKey Down st =
                  0   => 0
                  S n => n
       newSel = min maxIdx (st.selected + 1)
-      viewH  = 10
+      viewH  = st.termSize.height `minus` 6
       newOffset = if newSel >= st.jobOffset + viewH
                     then S (newSel `minus` viewH)
                     else st.jobOffset
   in update $ { selected := newSel, jobOffset := newOffset, logOffset := 0, logColOffset := 0 } st
 
 onKey (Alpha 'k') st =
-  let newOffset = st.logOffset + 1
+  let viewH = st.termSize.height `minus` 6
+      maxOff = length (getSelectedLogs st) `minus` viewH
+      newOffset = if st.logOffset + 1 >= maxOff then maxOff else st.logOffset + 1
   in update $ { logOffset := newOffset } st
 onKey (Alpha 'j') st =
   let newOffset = case st.logOffset of
@@ -51,14 +54,17 @@ onKey (Alpha 'j') st =
                     S n => n
   in update $ { logOffset := newOffset } st
 onKey PageUp st =
-  let viewH = 10
-      newOffset = st.logOffset + viewH
+  let viewH = st.termSize.height `minus` 6
+      maxOff = length (getSelectedLogs st) `minus` viewH
+      newOffset = if st.logOffset + viewH >= maxOff then maxOff else st.logOffset + viewH
   in update $ { logOffset := newOffset } st
 onKey PageDown st =
-  let viewH = 10
+  let viewH = st.termSize.height `minus` 6
       newOffset = case st.logOffset of
                     0   => 0
-                    S n => n `minus` viewH
+                    S n =>
+                      let raw = n `minus` viewH
+                      in if raw >= n then 0 else raw
   in update $ { logOffset := newOffset } st
 onKey (Alpha 'l') st =
   let newOffset = st.logColOffset + 4

@@ -1,6 +1,7 @@
 module Monitor.Types
 
 import public Protocol
+import public TUI.Geometry
 import Data.Maybe
 import Data.List
 
@@ -62,6 +63,7 @@ record JobMonitorState where
   constructor MkJobMonitorState
   batchName    : String
   leftColWidth : Nat
+  termSize     : Area
   jobs         : List JobEntry
   selected     : Nat
   jobLogs      : List (List LogLine)
@@ -87,9 +89,9 @@ getSelectedLogs : JobMonitorState -> List LogLine
 getSelectedLogs st = reverse $ fromMaybe [] $ indexNat st.selected st.jobLogs
 
 public export
-initialState : String -> Nat -> List JobEntry -> JobMonitorState
-initialState batchName leftColWidth jobs =
-  MkJobMonitorState batchName leftColWidth jobs 0 (replicate (length jobs) [])
+initialState : String -> Nat -> Area -> List JobEntry -> JobMonitorState
+initialState batchName leftColWidth termSize jobs =
+  MkJobMonitorState batchName leftColWidth termSize jobs 0 (replicate (length jobs) [])
     (replicate (length jobs) Nothing) 0 0 0 False False
 
 public export

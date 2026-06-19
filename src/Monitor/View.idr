@@ -140,7 +140,8 @@ View JobMonitorState where
     case st.jobs of
       [] => do
         showTextAt left.nw "No jobs available"
-      _  => paintJobList left st.jobs st.selected 0 st.jobOffset
+      _  => do
+        paintJobList left st.jobs st.selected 0 st.jobOffset
     paint Normal sep VRule
     let logs = getSelectedLogs st
     case logs of

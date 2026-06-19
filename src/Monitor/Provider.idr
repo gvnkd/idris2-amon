@@ -65,10 +65,12 @@ parseJobParams pairs name batchName =
 
 parseBatch : String -> List (String, JSON) -> Either String (List ProcessTask)
 parseBatch batchName jobPairs =
-  traverse (\(jobName, jobJSON) =>
-    case jobJSON of
-      JObject pairs => parseJobParams pairs jobName (Just batchName)
-      _            => Left "Job '\{jobName}' must be an object") jobPairs
+  let cmp : (String, JSON) -> (String, JSON) -> Ordering
+      cmp p1 p2 = compare (fst p1) (fst p2)
+   in traverse (\(jobName, jobJSON) =>
+        case jobJSON of
+          JObject pairs => parseJobParams pairs jobName (Just batchName)
+          _            => Left "Job '\{jobName}' must be an object") (sortBy cmp jobPairs)
 
 parseTaskConfig : List (String, JSON) -> TaskConfig
 parseTaskConfig pairs =
@@ -131,7 +133,7 @@ validateLogDirs baseDir tasks = do
         Just path => { logFile := Just (resolvePath baseDir path) } t
 
     checkAll : List ProcessTask -> List String -> List ProcessTask -> IO (List String, List ProcessTask)
-    checkAll [] acc errs = pure (acc, errs)
+    checkAll [] acc errs = pure (reverse acc, reverse errs)
     checkAll (t :: ts) acc resolved =
       let t' = resolveLogFile t
       in case t'.logFile of

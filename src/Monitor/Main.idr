@@ -16,6 +16,7 @@ import Options.Applicative.Builder
 import Options.Applicative.Run
 import Options.Applicative.Help
 import Options.Applicative.Error
+import TUI.Geometry
 import Monitor.Types
 import Monitor.Provider
 import Monitor.Process
@@ -53,7 +54,8 @@ run cfg = do
   let entries = toJobEntries tasks
   let maxTitleLen = foldl (\acc, e => max acc (length e.task.name)) 0 entries
   let leftWidth = fromMaybe (maxTitleLen + 5) config.leftWidth
-  let initState = initialState batchName leftWidth entries
+  termSize <- getWinSize
+  let initState = initialState batchName leftWidth termSize entries
   let mainLoop = asyncMain {evts = [JobUpdate, Key]}
                     [resultsSource (S (maxWorkers `minus` 1)) tasks]
   Prelude.ignore $ runView mainLoop handler initState
