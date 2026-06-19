@@ -228,7 +228,7 @@
             Section: utils
             Priority: optional
             Architecture: amd64
-            Depends: libc6, ansible, bash, coreutils
+            Depends: libc6
             Maintainer: Omg Bebebe <amon@omgbebebe.local>
             Description: Ansible Monitor TUI
              amon is a terminal UI for running and monitoring Ansible
