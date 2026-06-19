@@ -37,7 +37,7 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-      idrisPkgs = idris2-withpkgs.packages.${system};
+        idrisPkgs = idris2-withpkgs.packages.${system};
 
         tuiPatched = (pkgs.idris2Packages.buildIdris {
           src = idris2-tui-async-patched;
@@ -57,78 +57,80 @@
           '';
         }).library { withSource = true; };
 
-      # tui-async must be compiled against the patched tui so it sees
-      # the PageUp/PageDown constructors; overrideAttrs cannot replace
-      # buildIdris dependencies, so rebuild it from the patched source.
-      tuiAsyncPatched = (pkgs.idris2Packages.buildIdris {
-        src = idris2-tui-async-patched;
-        ipkgName = "tui-async";
-        version = "0.1.0-pageup-pagedown-patch";
-        idrisLibraries = [
+        # tui-async must be compiled against the patched tui so it sees
+        # the PageUp/PageDown constructors; overrideAttrs cannot replace
+        # buildIdris dependencies, so rebuild it from the patched source.
+        tuiAsyncPatched = (pkgs.idris2Packages.buildIdris {
+          src = idris2-tui-async-patched;
+          ipkgName = "tui-async";
+          version = "0.1.0-pageup-pagedown-patch";
+          idrisLibraries = [
+            tuiPatched
+            idrisPkgs.posix
+            idrisPkgs.async
+            idrisPkgs.async-epoll
+          ];
+          preBuild = "cd tui-async";
+        }).library { withSource = true; };
+
+        idrisLibraries = with idrisPkgs; [
+          json
+          elab-util
+          ansi
+          optparse-applicative
           tuiPatched
-          idrisPkgs.posix
-          idrisPkgs.async
-          idrisPkgs.async-epoll
+          tuiAsyncPatched
+          (linux.overrideAttrs (old: {
+            version = "0.1.0-eintr-patch";
+            src = idris2-linux-patched;
+            patches = (old.patches or []) ++ [ ./patches/linux-eintr-retry.patch ];
+          }))
+          (async-epoll.overrideAttrs (old: {
+            version = "0.1.0-eintr-patch";
+            src = idris2-async-epoll-patched;
+            patches = (old.patches or []) ++ [ ./patches/async-epoll-eintr-retry.patch ];
+          }))
+          (async-posix.overrideAttrs (old: {
+            version = "0.1.0-eintr-patch";
+            src = idris2-async-posix-patched;
+            patches = (old.patches or []) ++ [ ./patches/async-posix-eintr-retry.patch ];
+          }))
+          streams
+          streams-posix
         ];
-        preBuild = "cd tui-async";
-      }).library { withSource = true; };
 
-      idrisLibraries = with idrisPkgs; [
-        json
-        elab-util
-        ansi
-        optparse-applicative
-        tuiPatched
-        tuiAsyncPatched
-        (linux.overrideAttrs (old: {
-          version = "0.1.0-eintr-patch";
-          src = idris2-linux-patched;
-          patches = (old.patches or []) ++ [ ./patches/linux-eintr-retry.patch ];
-        }))
-        (async-epoll.overrideAttrs (old: {
-          version = "0.1.0-eintr-patch";
-          src = idris2-async-epoll-patched;
-          patches = (old.patches or []) ++ [ ./patches/async-epoll-eintr-retry.patch ];
-        }))
-        (async-posix.overrideAttrs (old: {
-          version = "0.1.0-eintr-patch";
-          src = idris2-async-posix-patched;
-          patches = (old.patches or []) ++ [ ./patches/async-posix-eintr-retry.patch ];
-        }))
-        streams
-        streams-posix
-      ];
+        idris2Wrapped = idris2-withpkgs.lib.${system}.withPackages (p: [
+          p.json
+          p.elab-util
+          p.ansi
+          p.optparse-applicative
+          tuiPatched
+          tuiAsyncPatched
+          (p.linux.overrideAttrs (old: {
+            version = "0.1.0-eintr-patch";
+            src = idris2-linux-patched;
+            patches = (old.patches or []) ++ [ ./patches/linux-eintr-retry.patch ];
+          }))
+          (p.async-epoll.overrideAttrs (old: {
+            version = "0.1.0-eintr-patch";
+            src = idris2-async-epoll-patched;
+            patches = (old.patches or []) ++ [ ./patches/async-epoll-eintr-retry.patch ];
+          }))
+          (p.async-posix.overrideAttrs (old: {
+            version = "0.1.0-eintr-patch";
+            src = idris2-async-posix-patched;
+            patches = (old.patches or []) ++ [ ./patches/async-posix-eintr-retry.patch ];
+          }))
+          p.streams
+          p.streams-posix
+        ]);
 
-      idris2Wrapped = idris2-withpkgs.lib.${system}.withPackages (p: [
-        p.json
-        p.elab-util
-        p.ansi
-        p.optparse-applicative
-        tuiPatched
-        tuiAsyncPatched
-        (p.linux.overrideAttrs (old: {
-          version = "0.1.0-eintr-patch";
-          src = idris2-linux-patched;
-          patches = (old.patches or []) ++ [ ./patches/linux-eintr-retry.patch ];
-        }))
-        (p.async-epoll.overrideAttrs (old: {
-          version = "0.1.0-eintr-patch";
-          src = idris2-async-epoll-patched;
-          patches = (old.patches or []) ++ [ ./patches/async-epoll-eintr-retry.patch ];
-        }))
-        (p.async-posix.overrideAttrs (old: {
-          version = "0.1.0-eintr-patch";
-          src = idris2-async-posix-patched;
-          patches = (old.patches or []) ++ [ ./patches/async-posix-eintr-retry.patch ];
-        }))
-        p.streams
-        p.streams-posix
-      ]);
+        version = "0.1.0";
 
         pkg = pkgs.idris2Packages.buildIdris {
           src = ./.;
           ipkgName = "amon";
-          version = "0.1.0";
+          inherit version;
           inherit idrisLibraries;
           nativeBuildInputs = [ pkgs.gcc ];
           meta.mainProgram = "amon";
@@ -195,12 +197,57 @@
             Entrypoint = [ "${pkgs.tini}/bin/tini" "--" "${executable}/bin/amon" ];
           };
         };
+
+        amonDeb = pkgs.stdenvNoCC.mkDerivation {
+          name = "amon-${version}.deb";
+          inherit version;
+          nativeBuildInputs = [ pkgs.dpkg ];
+          dontUnpack = true;
+          buildPhase = ''
+            mkdir -p amon/DEBIAN
+            mkdir -p amon/usr/bin
+            mkdir -p amon/usr/lib/amon
+
+            # Copy the wrapped ELF binary and our only runtime shared object.
+            # We ship our own wrapper script because the Nix wrapper hardcodes
+            # /nix/store paths for LD_LIBRARY_PATH.
+            cp -L ${executable}/bin/.amon-wrapped_ amon/usr/bin/amon-real
+            cp -L ${executable}/lib/amon-idris.so amon/usr/lib/amon/
+
+            cat > amon/usr/bin/amon <<'EOF'
+            #!/usr/bin/env bash
+            export LD_LIBRARY_PATH=/usr/lib/amon:$LD_LIBRARY_PATH
+            exec /usr/bin/amon-real "$@"
+            EOF
+            chmod 0755 amon/usr/bin/amon
+            chmod 0755 amon/usr/bin/amon-real
+
+            cat > amon/DEBIAN/control <<'EOF'
+            Package: amon
+            Version: ${version}
+            Section: utils
+            Priority: optional
+            Architecture: amd64
+            Depends: libc6, ansible, bash, coreutils
+            Maintainer: Omg Bebebe <amon@omgbebebe.local>
+            Description: Ansible Monitor TUI
+             amon is a terminal UI for running and monitoring Ansible
+             playbooks and other shell tasks.
+            EOF
+
+            dpkg-deb --build amon
+          '';
+          installPhase = ''
+            mkdir -p $out
+            cp amon.deb $out/amon_${version}_amd64.deb
+          '';
+        };
       in
       {
         packages = {
           default = executable;
           lib = pkg.library';
-          inherit container;
+          inherit container amonDeb;
         };
 
         bundlers = {
