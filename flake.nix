@@ -140,8 +140,8 @@
         # support libraries like cptr-idris.so, elin-idris.so, etc.
         depLibPath = pkgs.lib.makeSearchPath "lib" pkg.executable.propagatedIdrisLibraries;
 
-        # Wrap executable with LD_LIBRARY_PATH pointing to lib dir
-        # and create .so symlinks so Chez dlopen can find FFI libs
+        allDepLibDirs = pkgs.lib.concatMapStringsSep " " (p: "${p}/lib") pkg.executable.propagatedIdrisLibraries;
+
         executable = pkg.executable.overrideAttrs (old: {
           postFixup = ''
             ${old.postFixup or ""}
@@ -214,9 +214,20 @@
             cp -L ${executable}/bin/.amon-wrapped_ amon/usr/bin/amon-real
             cp -L ${executable}/lib/amon-idris.so amon/usr/lib/amon/
 
+            # Collect every transitive *.so the executable needs at runtime
+            # (cptr, elin, posix, linux, etc.) into /usr/lib/amon.
+            for libdir in ${allDepLibDirs}; do
+              for so in "$libdir"/*.so; do
+                [ -f "$so" ] || continue
+                base=$(basename "$so")
+                [ -e "amon/usr/lib/amon/$base" ] || cp -L "$so" "amon/usr/lib/amon/$base"
+              done
+            done
+
             # Idris2 support library is linked dynamically by Chez-generated
             # binaries; ship it alongside the FFI libs.
             cp -L ${pkgs.idris2Packages.idris2.unwrapped.libidris2_support}/lib/libidris2_support.so amon/usr/lib/amon/
+
 
             # Patch interpreter and RPATH so the binary works outside NixOS.
             chmod +w amon/usr/bin/amon-real
